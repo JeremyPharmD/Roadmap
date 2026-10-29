@@ -1,50 +1,5 @@
-const SEED = [
-  {
-    id: "list-open-loops",
-    title: "List open loops",
-    description: "Write down what is still unfinished.",
-    color: "#b54a2a",
-    status: "evaluate",
-    statusNote: "Still gathering what is open.",
-    tasks: [],
-  },
-  {
-    id: "pick-the-next-three",
-    title: "Pick the next three",
-    description: "Choose the three tasks to work next.",
-    color: "#b54a2a",
-    status: "evaluate",
-    statusNote: "Waiting on the open-loop list.",
-    tasks: [],
-  },
-  {
-    id: "write-the-status-note",
-    title: "Write the status note",
-    description: "One sentence on where this stands.",
-    color: "#1f6f8b",
-    status: "feasibility",
-    statusNote: "Checking whether the note is enough.",
-    tasks: [],
-  },
-  {
-    id: "name-the-owner",
-    title: "Name the owner",
-    description: "Name the person who will finish it.",
-    color: "#1f6f8b",
-    status: "feasibility",
-    statusNote: "This depends on who can take it.",
-    tasks: [],
-  },
-  {
-    id: "write-the-done-line",
-    title: "Write the done line",
-    description: "Say what finished looks like.",
-    color: "#6b5e52",
-    status: "review",
-    statusNote: "Ready for someone to read the line.",
-    tasks: [],
-  },
-];
+const STORAGE_KEY = "pocket-work-tracker";
+const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
 
 const PHASES = [
   { id: "evaluate", label: "Evaluate", short: "Evaluate" },
@@ -52,8 +7,43 @@ const PHASES = [
   { id: "review", label: "Ready for review", short: "Review" },
 ];
 
+function normalizeItem(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const status = PHASES.some((phase) => phase.id === raw.status) ? raw.status : "evaluate";
+  const color = COLORS.includes(raw.color) ? raw.color : COLORS[0];
+  const tasks = Array.isArray(raw.tasks)
+    ? raw.tasks
+        .filter((task) => task && typeof task === "object")
+        .map((task) => ({
+          text: typeof task.text === "string" ? task.text : "",
+          done: Boolean(task.done),
+        }))
+    : [];
+  return {
+    id: typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID(),
+    title: typeof raw.title === "string" ? raw.title : "",
+    description: typeof raw.description === "string" ? raw.description : "",
+    color,
+    status,
+    statusNote: typeof raw.statusNote === "string" ? raw.statusNote : "",
+    tasks,
+  };
+}
+
+function loadItems() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeItem).filter(Boolean);
+  } catch (error) {
+    return [];
+  }
+}
+
 const state = {
-  items: SEED.map((item) => ({ ...item, tasks: item.tasks.map((task) => ({ ...task })) })),
+  items: loadItems(),
   openId: null,
   editing: false,
   scrollTask: null,
@@ -103,7 +93,7 @@ function progressOf(item) {
 function openLines() {
   return state.items.slice(0, 3).map((item) => ({
     itemId: item.id,
-    text: item.title,
+    text: item.title || "New task",
     reason: item.statusNote || phaseOf(item.status).label,
     color: item.color,
   }));
@@ -113,6 +103,12 @@ function commit() {
   const token = ++saveToken;
   statusEl.classList.remove("is-error");
   statusEl.textContent = "Saving…";
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+  } catch (error) {
+    fail("Could not save on this browser.");
+    return;
+  }
   window.setTimeout(() => {
     if (token !== saveToken) return;
     statusEl.textContent = "Saved";
@@ -167,7 +163,8 @@ function renderNext() {
 function renderList() {
   const rows = state.items
     .map((item, index) => {
-      const title = item.title || "Untitled";
+      const title = item.title || "New task";
+      const placeholder = item.title ? "" : " is-placeholder";
       return `
         <article class="row" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
           <button type="button" class="handle" aria-label="Reorder ${escapeHtml(title)}">
@@ -176,7 +173,7 @@ function renderList() {
           <span class="rank">${index + 1}</span>
           <button type="button" class="open" data-open="${escapeHtml(item.id)}">
             <span class="title-line">
-              <span class="title">${escapeHtml(item.title)}</span>
+              <span class="title${placeholder}">${escapeHtml(title)}</span>
               <span class="chevron" aria-hidden="true"></span>
             </span>
             ${meterHtml(item)}
@@ -189,7 +186,7 @@ function renderList() {
       `;
     })
     .join("");
-  return `<div id="list">${rows}</div>`;
+  return `<div id="list">${rows}</div><button type="button" class="add-task" data-add-task>Add a task</button>`;
 }
 
 function renderBoard() {
@@ -237,11 +234,14 @@ function renderSheet() {
     ? `<input class="field note-input" type="text" value="${escapeHtml(item.statusNote)}" data-field="statusNote" aria-label="Status note" />`
     : `<p class="note">${escapeHtml(item.statusNote)}</p>`;
   const heading = state.editing
-    ? `<input id="sheet-title" class="field title-input" type="text" value="${escapeHtml(item.title)}" data-field="title" aria-label="Title" />
+    ? `<input id="sheet-title" class="field title-input" type="text" value="${escapeHtml(item.title)}" data-field="title" aria-label="Title" placeholder="New task" />
        <input class="field desc-input" type="text" value="${escapeHtml(item.description)}" data-field="description" aria-label="Description" />`
-    : `<h2 id="sheet-title">${escapeHtml(item.title)}</h2><p class="desc">${escapeHtml(item.description)}</p>`;
+    : `<h2 id="sheet-title">${escapeHtml(item.title || "New task")}</h2><p class="desc">${escapeHtml(item.description)}</p>`;
   const tasks = item.tasks.map((task, index) => taskHtml(task, index, state.editing)).join("");
   const add = state.editing ? `<button type="button" class="add-line" data-add>Add a line</button>` : "";
+  const removeTask = state.editing
+    ? `<button type="button" class="remove-task" data-delete-task>Remove task</button>`
+    : "";
 
   sheetRoot.innerHTML = `
     <div class="backdrop${alreadyOpen ? " is-in" : ""}" data-close></div>
@@ -270,6 +270,7 @@ function renderSheet() {
           <button type="button" class="text-btn" data-edit>${state.editing ? "Done" : "Edit"}</button>
         </div>
         ${item.tasks.length || state.editing ? `<div class="tasks">${tasks}</div>${add}` : ""}
+        ${removeTask}
       </div>
     </div>
   `;
@@ -335,6 +336,36 @@ function closeSheet() {
   };
   sheet.addEventListener("transitionend", finish, { once: true });
   window.setTimeout(finish, 320);
+}
+
+function addTask() {
+  const item = {
+    id: crypto.randomUUID(),
+    title: "",
+    description: "",
+    color: COLORS[state.items.length % COLORS.length],
+    status: "evaluate",
+    statusNote: "",
+    tasks: [],
+  };
+  state.items.push(item);
+  closing = false;
+  state.openId = item.id;
+  state.editing = true;
+  state.scrollTask = null;
+  commit();
+  render();
+  sheetRoot.querySelector("[data-field='title']")?.focus();
+}
+
+function deleteOpenTask() {
+  const id = state.openId;
+  if (!id) return;
+  state.items = state.items.filter((item) => item.id !== id);
+  state.openId = null;
+  state.editing = false;
+  commit();
+  render();
 }
 
 function moveItem(id, direction) {
@@ -408,6 +439,14 @@ document.addEventListener("pointercancel", (event) => {
 
 document.addEventListener("click", (event) => {
   try {
+    if (event.target.closest("[data-add-task]")) {
+      addTask();
+      return;
+    }
+    if (event.target.closest("[data-delete-task]")) {
+      deleteOpenTask();
+      return;
+    }
     const move = event.target.closest("[data-move]");
     if (move) {
       moveItem(move.dataset.id, move.dataset.move === "up" ? -1 : 1);
@@ -485,9 +524,14 @@ document.addEventListener("input", (event) => {
     if (taskIndex != null) item.tasks[Number(taskIndex)].text = event.target.value;
     if (field === "title") {
       const title = document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .title`);
-      if (title) title.textContent = item.title;
+      if (title) {
+        title.textContent = item.title || "New task";
+        title.classList.toggle("is-placeholder", !item.title);
+      }
+      const handle = document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .handle`);
+      if (handle) handle.setAttribute("aria-label", `Reorder ${item.title || "New task"}`);
     }
-    if (field === "statusNote" || taskIndex != null) {
+    if (field === "title" || field === "statusNote" || taskIndex != null) {
       const next = app.querySelector(".next");
       if (next) next.outerHTML = renderNext();
     }
