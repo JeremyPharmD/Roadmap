@@ -6,4 +6,4 @@ Add a task, name it, and move the phase: Evaluate, then Investigate feasibility,
 
 What you add is saved in this browser. Another browser, or a cleared site data store, starts empty again.
 
-https://jeremypharmd.github.io/Roadmap/
+The public copy lives on the `gh-pages` branch. With GitHub Pages set to that branch and the `/` folder, the tracker is at https://jeremypharmd.github.io/Roadmap/.
