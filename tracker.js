@@ -1,11 +1,35 @@
 const STORAGE_KEY = "pocket-work-tracker";
 const STARTER_KEY = "pocket-work-tracker-starter";
-const STARTER_VERSION = "2";
+const STARTER_VERSION = "3";
+const CAPITAL_ID = "capital-it-spend";
 const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
 const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
+const SPEND = [
+  "BestRx licensing",
+  "BestRx enterprise contract",
+  "Offshore development",
+  "Total IT labor, including offshore",
+  "Redline solutions",
+];
 
 function reviewTasks() {
   return REVIEW.map((text) => ({ text, done: false }));
+}
+
+function spendTasks() {
+  return SPEND.map((text) => ({ text, done: false }));
+}
+
+function capitalItem(index) {
+  return {
+    id: CAPITAL_ID,
+    title: "Capital IT spend",
+    description: "Heavy licensing, subscriptions, and IT labor, with a target to reduce the total.",
+    statusNote: "",
+    color: COLORS[index % COLORS.length],
+    status: "evaluate",
+    tasks: [...reviewTasks(), ...spendTasks()],
+  };
 }
 
 const STARTER = [
@@ -64,6 +88,8 @@ const STARTER = [
   tasks: reviewTasks(),
 }));
 
+STARTER.push(capitalItem(STARTER.length));
+
 const PHASES = [
   { id: "evaluate", label: "Evaluate", short: "Evaluate" },
   { id: "feasibility", label: "Investigate feasibility", short: "Feasibility" },
@@ -103,13 +129,29 @@ function withReview(item) {
   return { ...item, tasks: [...missing, ...item.tasks] };
 }
 
+function ensureCapital(items) {
+  const index = items.findIndex(
+    (item) => item.id === CAPITAL_ID || item.title.trim().toLowerCase() === "capital it spend",
+  );
+  if (index === -1) return [...items, capitalItem(items.length)];
+  const have = new Set(items[index].tasks.map((task) => task.text.trim().toLowerCase()));
+  const missing = spendTasks().filter((task) => !have.has(task.text.toLowerCase()));
+  if (!missing.length) return items;
+  const next = items.slice();
+  next[index] = { ...items[index], tasks: [...items[index].tasks, ...missing] };
+  return next;
+}
+
 function loadItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     const saved = Array.isArray(parsed) ? parsed.map(normalizeItem).filter(Boolean) : [];
-    if (localStorage.getItem(STARTER_KEY) === STARTER_VERSION) return saved;
-    const items = (saved.length ? saved : starterItems()).map(withReview);
+    const version = localStorage.getItem(STARTER_KEY);
+    if (version === STARTER_VERSION) return saved;
+    let items = saved.length ? saved : starterItems();
+    if (version !== "2") items = items.map(withReview);
+    items = ensureCapital(items);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     localStorage.setItem(STARTER_KEY, STARTER_VERSION);
     return items;
