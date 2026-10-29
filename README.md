@@ -6,4 +6,4 @@ Add a task, name it, and move the phase: Evaluate, then Investigate feasibility,
 
 What you add is saved in this browser. Another browser, or a cleared site data store, starts empty again.
 
-The public copy lives on the `gh-pages` branch. With GitHub Pages set to that branch and the `/` folder, the tracker is at https://jeremypharmd.github.io/Roadmap/.
+`npm start` serves the page for hosting. It listens on `PORT`, or 8080.
