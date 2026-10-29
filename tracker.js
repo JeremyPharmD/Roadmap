@@ -1,7 +1,8 @@
 const STORAGE_KEY = "pocket-work-tracker";
 const STARTER_KEY = "pocket-work-tracker-starter";
-const STARTER_VERSION = "3";
+const STARTER_VERSION = "4";
 const CAPITAL_ID = "capital-it-spend";
+const SCALE_ID = "scale-analysis";
 const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
 const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
 const SPEND = [
@@ -88,7 +89,20 @@ const STARTER = [
   tasks: reviewTasks(),
 }));
 
+function scaleItem(index) {
+  return {
+    id: SCALE_ID,
+    title: "SCALE analysis",
+    description: "",
+    statusNote: "",
+    color: COLORS[index % COLORS.length],
+    status: "evaluate",
+    tasks: reviewTasks(),
+  };
+}
+
 STARTER.push(capitalItem(STARTER.length));
+STARTER.push(scaleItem(STARTER.length));
 
 const PHASES = [
   { id: "evaluate", label: "Evaluate", short: "Evaluate" },
@@ -142,6 +156,14 @@ function ensureCapital(items) {
   return next;
 }
 
+function ensureScale(items) {
+  const present = items.some(
+    (item) => item.id === SCALE_ID || item.title.trim().toLowerCase() === "scale analysis",
+  );
+  if (present) return items;
+  return [...items, scaleItem(items.length)];
+}
+
 function loadItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -150,8 +172,9 @@ function loadItems() {
     const version = localStorage.getItem(STARTER_KEY);
     if (version === STARTER_VERSION) return saved;
     let items = saved.length ? saved : starterItems();
-    if (version !== "2") items = items.map(withReview);
+    if (version !== "2" && version !== "3") items = items.map(withReview);
     items = ensureCapital(items);
+    items = ensureScale(items);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     localStorage.setItem(STARTER_KEY, STARTER_VERSION);
     return items;
@@ -278,7 +301,7 @@ function renderList() {
       const placeholder = item.title ? "" : " is-placeholder";
       return `
         <article class="row" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
-          <button type="button" class="handle" aria-label="Reorder ${escapeHtml(title)}">
+          <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}">
             <span class="grip" aria-hidden="true"></span>
           </button>
           <span class="rank">${index + 1}</span>
@@ -290,8 +313,12 @@ function renderList() {
             ${meterHtml(item)}
           </button>
           <span class="nudges">
-            <button type="button" class="nudge" data-move="up" data-id="${escapeHtml(item.id)}" ${index === 0 ? "disabled" : ""}>Up</button>
-            <button type="button" class="nudge" data-move="down" data-id="${escapeHtml(item.id)}" ${index === state.items.length - 1 ? "disabled" : ""}>Down</button>
+            <button type="button" class="nudge" data-move="up" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} up" ${index === 0 ? "disabled" : ""}>
+              <span class="arrow arrow-up" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="nudge" data-move="down" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} down" ${index === state.items.length - 1 ? "disabled" : ""}>
+              <span class="arrow arrow-down" aria-hidden="true"></span>
+            </button>
           </span>
         </article>
       `;
@@ -483,14 +510,62 @@ function deleteOpenTask() {
   render();
 }
 
+function rowTops() {
+  return new Map(
+    [...document.querySelectorAll("#list .row")].map((row) => [row.dataset.id, row.getBoundingClientRect().top]),
+  );
+}
+
+function pinRow(row, delta) {
+  row.style.transition = "none";
+  row.style.transform = `translateY(${delta}px)`;
+}
+
+function releaseRows(rows) {
+  if (!rows.length) return;
+  document.querySelector("#list").getBoundingClientRect();
+  for (const row of rows) {
+    row.style.transition = "";
+    row.style.transform = "";
+  }
+}
+
+function slideRows(before, movedId) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const moving = [];
+  for (const row of document.querySelectorAll("#list .row")) {
+    const previous = before.get(row.dataset.id);
+    if (previous == null) continue;
+    const delta = previous - row.getBoundingClientRect().top;
+    if (!delta) continue;
+    pinRow(row, delta);
+    moving.push(row);
+  }
+  const moved = movedId
+    ? document.querySelector(`#list .row[data-id="${CSS.escape(movedId)}"]`)
+    : null;
+  if (moved) moved.classList.add("is-settling");
+  releaseRows(moving);
+  if (!moved) return;
+  window.setTimeout(() => moved.classList.remove("is-settling"), 380);
+}
+
 function moveItem(id, direction) {
   const index = state.items.findIndex((item) => item.id === id);
   const target = index + direction;
   if (index < 0 || target < 0 || target >= state.items.length) return;
+  const before = rowTops();
   const [item] = state.items.splice(index, 1);
   state.items.splice(target, 0, item);
   commit();
   render();
+  slideRows(before, id);
+  const move = direction < 0 ? "up" : "down";
+  const pressed = document.querySelector(
+    `.nudge[data-id="${CSS.escape(id)}"][data-move="${move}"]`,
+  );
+  if (pressed && !pressed.disabled) pressed.focus();
+  else document.querySelector(`.row[data-id="${CSS.escape(id)}"] .nudge:not(:disabled)`)?.focus();
 }
 
 function syncOrderFromDom() {
@@ -499,25 +574,66 @@ function syncOrderFromDom() {
   state.items = order.map((id) => byId.get(id));
 }
 
+function placeDrag(event) {
+  drag.row.style.transform = `translateY(${event.clientY - drag.startY - drag.compensation}px)`;
+}
+
 function onPointerMove(event) {
   if (!drag || event.pointerId !== drag.pointerId) return;
   const list = document.querySelector("#list");
-  const rows = [...list.querySelectorAll(".row")];
-  let target = rows.length - 1;
-  for (let index = 0; index < rows.length; index += 1) {
-    const rect = rows[index].getBoundingClientRect();
-    if (event.clientY < rect.top + rect.height / 2) {
-      target = index;
-      break;
+  placeDrag(event);
+  const tops = new Map(
+    [...list.querySelectorAll(".row")].map((row) => [row, row.getBoundingClientRect().top]),
+  );
+  let swapped = false;
+  for (let guard = 0; guard < 12; guard += 1) {
+    const rows = [...list.querySelectorAll(".row")];
+    const current = rows.indexOf(drag.row);
+    const box = drag.row.getBoundingClientRect();
+    const center = box.top + box.height / 2;
+    let placed = false;
+    let beforeNode = null;
+    if (current > 0) {
+      const previous = rows[current - 1];
+      const rect = previous.getBoundingClientRect();
+      if (center < rect.top + rect.height / 2) {
+        placed = true;
+        beforeNode = previous;
+      }
     }
+    if (!placed && current < rows.length - 1) {
+      const next = rows[current + 1];
+      const rect = next.getBoundingClientRect();
+      if (center > rect.top + rect.height / 2) {
+        placed = true;
+        beforeNode = next.nextSibling;
+      }
+    }
+    if (!placed) break;
+    const beforeTop = drag.row.offsetTop;
+    list.insertBefore(drag.row, beforeNode);
+    drag.compensation += drag.row.offsetTop - beforeTop;
+    placeDrag(event);
+    swapped = true;
   }
-  const current = rows.indexOf(drag.row);
-  if (target === current) return;
-  if (target > current) list.insertBefore(drag.row, rows[target].nextSibling);
-  else list.insertBefore(drag.row, rows[target]);
-  [...list.querySelectorAll(".row")].forEach((row, index) => {
+  if (!swapped) return;
+  [...list.querySelectorAll(".row")].forEach((row, index, rows) => {
     row.querySelector(".rank").textContent = String(index + 1);
+    const up = row.querySelector('[data-move="up"]');
+    const down = row.querySelector('[data-move="down"]');
+    if (up) up.disabled = index === 0;
+    if (down) down.disabled = index === rows.length - 1;
   });
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const moving = [];
+  for (const row of list.querySelectorAll(".row")) {
+    if (row === drag.row) continue;
+    const delta = tops.get(row) - row.getBoundingClientRect().top;
+    if (!delta) continue;
+    pinRow(row, delta);
+    moving.push(row);
+  }
+  releaseRows(moving);
 }
 
 document.addEventListener("pointerdown", (event) => {
@@ -525,7 +641,7 @@ document.addEventListener("pointerdown", (event) => {
   if (!handle || state.openId) return;
   event.preventDefault();
   const row = handle.closest(".row");
-  drag = { row, pointerId: event.pointerId };
+  drag = { row, pointerId: event.pointerId, startY: event.clientY, compensation: 0 };
   row.classList.add("is-dragging");
   try {
     handle.setPointerCapture(event.pointerId);
@@ -538,11 +654,15 @@ document.addEventListener("pointermove", onPointerMove);
 
 document.addEventListener("pointerup", (event) => {
   if (!drag || event.pointerId !== drag.pointerId) return;
+  const before = rowTops();
+  const movedId = drag.row.dataset.id;
   drag.row.classList.remove("is-dragging");
+  drag.row.style.transform = "";
   drag = null;
   syncOrderFromDom();
   commit();
   render();
+  slideRows(before, movedId);
 });
 
 document.addEventListener("pointercancel", (event) => {
@@ -643,8 +763,12 @@ document.addEventListener("input", (event) => {
         title.textContent = item.title || "New task";
         title.classList.toggle("is-placeholder", !item.title);
       }
-      const handle = document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .handle`);
-      if (handle) handle.setAttribute("aria-label", `Reorder ${item.title || "New task"}`);
+      const row = document.querySelector(`.row[data-id="${CSS.escape(item.id)}"]`);
+      const handle = row?.querySelector(".handle");
+      const label = item.title || "New task";
+      if (handle) handle.setAttribute("aria-label", `Drag to reorder ${label}`);
+      row?.querySelector('[data-move="up"]')?.setAttribute("aria-label", `Move ${label} up`);
+      row?.querySelector('[data-move="down"]')?.setAttribute("aria-label", `Move ${label} down`);
     }
     if (field === "title" || field === "statusNote" || taskIndex != null) {
       const next = app.querySelector(".next");
