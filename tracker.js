@@ -1,0 +1,527 @@
+const SEED = [
+  {
+    id: "weekly-review",
+    title: "Weekly review",
+    description: "The pass over what is still open.",
+    color: "#b54a2a",
+    status: "current",
+    statusNote: "Two lines are still open.",
+    tasks: [
+      { text: "List open loops", done: true },
+      { text: "Pick the next three", done: false },
+      { text: "Write the status note", done: false },
+    ],
+  },
+  {
+    id: "handoffs",
+    title: "Handoffs",
+    description: "Move a piece of work to the person who finishes it.",
+    color: "#1f6f8b",
+    status: "next",
+    statusNote: "The handoff starts with an owner.",
+    tasks: [
+      { text: "Name the owner", done: false },
+      { text: "Write the done line", done: false },
+    ],
+  },
+  {
+    id: "archive",
+    title: "Archive",
+    description: "Kept out of the active pass.",
+    color: "#6b5e52",
+    status: "later",
+    statusNote: "Nothing is checked yet.",
+    tasks: [],
+  },
+];
+
+const PHASES = [
+  { id: "current", label: "Current phase" },
+  { id: "next", label: "Next" },
+  { id: "later", label: "Later" },
+];
+
+const state = {
+  items: SEED.map((item) => ({ ...item, tasks: item.tasks.map((task) => ({ ...task })) })),
+  openId: null,
+  editing: false,
+  scrollTask: null,
+};
+
+let saveToken = 0;
+let drag = null;
+let closing = false;
+
+const app = document.querySelector("#app");
+const sheetRoot = document.querySelector("#sheet-root");
+const statusEl = document.querySelector("#status");
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function itemById(id) {
+  return state.items.find((item) => item.id === id);
+}
+
+function progressOf(item) {
+  const total = item.tasks.length;
+  if (total === 0) {
+    return { percent: 0, fraction: "—/—", percentLabel: "—" };
+  }
+  const done = item.tasks.filter((task) => task.done).length;
+  return {
+    percent: Math.round((done / total) * 100),
+    fraction: `${done}/${total}`,
+    percentLabel: `${Math.round((done / total) * 100)}%`,
+  };
+}
+
+function openLines() {
+  const lines = [];
+  state.items.forEach((item) => {
+    item.tasks.forEach((task, taskIndex) => {
+      if (!task.done) {
+        lines.push({
+          itemId: item.id,
+          taskIndex,
+          text: task.text,
+          reason: item.statusNote || item.description,
+          color: item.color,
+        });
+      }
+    });
+  });
+  return lines.slice(0, 3);
+}
+
+function commit() {
+  const token = ++saveToken;
+  statusEl.classList.remove("is-error");
+  statusEl.textContent = "Saving…";
+  window.setTimeout(() => {
+    if (token !== saveToken) return;
+    statusEl.textContent = "Saved";
+  }, 160);
+}
+
+function fail(message) {
+  statusEl.textContent = message;
+  statusEl.classList.add("is-error");
+}
+
+function meterHtml(item) {
+  const progress = progressOf(item);
+  const size = item.size ? escapeHtml(item.size) : "—";
+  return `
+    <span class="meter">
+      <span class="size">${size}</span>
+      <span class="track" aria-hidden="true"><span class="fill" style="width:${progress.percent}%"></span></span>
+      <span class="count">
+        <span class="frac">${progress.fraction}</span>
+        <span class="pct">${progress.percentLabel}</span>
+      </span>
+    </span>
+  `;
+}
+
+function renderNext() {
+  const lines = openLines();
+  const body = lines.length
+    ? lines
+        .map(
+          (line, index) => `
+            <button
+              type="button"
+              class="next-line"
+              data-open="${escapeHtml(line.itemId)}"
+              data-task="${line.taskIndex}"
+              style="--accent:${escapeHtml(line.color)}"
+            >
+              <span class="n">${index + 1}</span>
+              <span>
+                <strong>${escapeHtml(line.text)}</strong>
+                <em>${escapeHtml(line.reason)}</em>
+              </span>
+            </button>
+          `,
+        )
+        .join("")
+    : `<p class="next-empty">No open key work.</p>`;
+  return `<section class="next" aria-label="Next 3"><h2>Next 3</h2>${body}</section>`;
+}
+
+function renderList() {
+  const rows = state.items
+    .map((item, index) => {
+      const title = item.title || "Untitled";
+      return `
+        <article class="row" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
+          <button type="button" class="handle" aria-label="Reorder ${escapeHtml(title)}">
+            <span class="grip" aria-hidden="true"></span>
+          </button>
+          <span class="rank">${index + 1}</span>
+          <button type="button" class="open" data-open="${escapeHtml(item.id)}">
+            <span class="title-line">
+              <span class="title">${escapeHtml(item.title)}</span>
+              <span class="chevron" aria-hidden="true"></span>
+            </span>
+            ${meterHtml(item)}
+          </button>
+          <span class="nudges">
+            <button type="button" class="nudge" data-move="up" data-id="${escapeHtml(item.id)}" ${index === 0 ? "disabled" : ""}>Up</button>
+            <button type="button" class="nudge" data-move="down" data-id="${escapeHtml(item.id)}" ${index === state.items.length - 1 ? "disabled" : ""}>Down</button>
+          </span>
+        </article>
+      `;
+    })
+    .join("");
+  return `<div id="list">${rows}</div>`;
+}
+
+function renderBoard() {
+  app.innerHTML = renderNext() + renderList();
+}
+
+function taskHtml(task, index, editing) {
+  const doneClass = task.done ? " is-done" : "";
+  if (!editing) {
+    return `
+      <label class="task${doneClass}" data-task="${index}">
+        <input type="checkbox" ${task.done ? "checked" : ""} data-check="${index}" />
+        <span class="task-text">${escapeHtml(task.text)}</span>
+      </label>
+    `;
+  }
+  return `
+    <div class="task${doneClass}" data-task="${index}">
+      <input type="checkbox" ${task.done ? "checked" : ""} data-check="${index}" />
+      <input class="field task-input" type="text" value="${escapeHtml(task.text)}" data-task-text="${index}" aria-label="Key work ${index + 1}" />
+      <button type="button" class="remove" data-remove="${index}">Remove</button>
+    </div>
+  `;
+}
+
+function renderSheet() {
+  const item = state.openId ? itemById(state.openId) : null;
+  if (!item) {
+    sheetRoot.innerHTML = "";
+    document.body.classList.remove("sheet-open");
+    return;
+  }
+  const rank = state.items.findIndex((entry) => entry.id === item.id) + 1;
+  const previousBody = sheetRoot.querySelector(".sheet-body");
+  const keepScroll = previousBody ? previousBody.scrollTop : 0;
+  const alreadyOpen = Boolean(sheetRoot.querySelector(".sheet.is-in"));
+  const phases = PHASES.map(
+    (phase) => `
+      <button type="button" data-status="${phase.id}" aria-pressed="${item.status === phase.id}">
+        ${phase.label}
+      </button>
+    `,
+  ).join("");
+  const note = state.editing
+    ? `<input class="field note-input" type="text" value="${escapeHtml(item.statusNote)}" data-field="statusNote" aria-label="Status note" />`
+    : `<p class="note">${escapeHtml(item.statusNote)}</p>`;
+  const heading = state.editing
+    ? `<input id="sheet-title" class="field title-input" type="text" value="${escapeHtml(item.title)}" data-field="title" aria-label="Title" />
+       <input class="field desc-input" type="text" value="${escapeHtml(item.description)}" data-field="description" aria-label="Description" />`
+    : `<h2 id="sheet-title">${escapeHtml(item.title)}</h2><p class="desc">${escapeHtml(item.description)}</p>`;
+  const tasks = item.tasks.map((task, index) => taskHtml(task, index, state.editing)).join("");
+  const add = state.editing ? `<button type="button" class="add-line" data-add>Add a line</button>` : "";
+
+  sheetRoot.innerHTML = `
+    <div class="backdrop${alreadyOpen ? " is-in" : ""}" data-close></div>
+    <div
+      class="sheet${alreadyOpen ? " is-in" : ""}"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sheet-title"
+      style="--accent:${escapeHtml(item.color)}"
+    >
+      <div class="sheet-bar">
+        <button type="button" class="grab" aria-label="Drag down to close"></button>
+        <button type="button" class="close" data-close>Close</button>
+      </div>
+      <div class="sheet-body">
+        <div class="identity">
+          <span class="rank">${rank}</span>
+          <div>${heading}</div>
+        </div>
+        <div class="phase-row">
+          <div class="segments" role="radiogroup" aria-label="Phase">${phases}</div>
+          ${note}
+        </div>
+        <div class="key-head">
+          <h3>Key work</h3>
+          <button type="button" class="text-btn" data-edit>${state.editing ? "Done" : "Edit"}</button>
+        </div>
+        <div class="tasks">${tasks}</div>
+        ${add}
+      </div>
+    </div>
+  `;
+  document.body.classList.add("sheet-open");
+  const sheet = sheetRoot.querySelector(".sheet");
+  const body = sheetRoot.querySelector(".sheet-body");
+  if (alreadyOpen) {
+    body.scrollTop = keepScroll;
+    return;
+  }
+  requestAnimationFrame(() => {
+    sheet.classList.add("is-in");
+    sheetRoot.querySelector(".backdrop").classList.add("is-in");
+    if (state.scrollTask == null) return;
+    const line = body.querySelector(`[data-task="${state.scrollTask}"]`);
+    state.scrollTask = null;
+    if (!line) return;
+    const bodyRect = body.getBoundingClientRect();
+    const lineRect = line.getBoundingClientRect();
+    body.scrollTop += lineRect.top - bodyRect.top - body.clientHeight / 2 + lineRect.height / 2;
+  });
+}
+
+function render() {
+  const active = document.activeElement;
+  const activeTask = active && active.dataset ? active.dataset.taskText : undefined;
+  renderBoard();
+  renderSheet();
+  if (activeTask != null) {
+    sheetRoot.querySelector(`[data-task-text="${activeTask}"]`)?.focus();
+  }
+}
+
+function openSheet(id, taskIndex) {
+  closing = false;
+  state.openId = id;
+  state.editing = false;
+  state.scrollTask = taskIndex == null ? null : taskIndex;
+  render();
+}
+
+function closeSheet() {
+  const sheet = sheetRoot.querySelector(".sheet");
+  const backdrop = sheetRoot.querySelector(".backdrop");
+  const returnId = state.openId;
+  if (!sheet || closing) {
+    state.openId = null;
+    state.editing = false;
+    renderSheet();
+    return;
+  }
+  closing = true;
+  sheet.style.transform = "";
+  sheet.classList.remove("is-in");
+  backdrop.classList.remove("is-in");
+  const finish = () => {
+    if (!closing) return;
+    closing = false;
+    state.openId = null;
+    state.editing = false;
+    renderSheet();
+    document.querySelector(`.row[data-id="${CSS.escape(returnId)}"] .open`)?.focus();
+  };
+  sheet.addEventListener("transitionend", finish, { once: true });
+  window.setTimeout(finish, 320);
+}
+
+function moveItem(id, direction) {
+  const index = state.items.findIndex((item) => item.id === id);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= state.items.length) return;
+  const [item] = state.items.splice(index, 1);
+  state.items.splice(target, 0, item);
+  commit();
+  render();
+}
+
+function syncOrderFromDom() {
+  const order = [...document.querySelectorAll("#list .row")].map((row) => row.dataset.id);
+  const byId = new Map(state.items.map((item) => [item.id, item]));
+  state.items = order.map((id) => byId.get(id));
+}
+
+function onPointerMove(event) {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const list = document.querySelector("#list");
+  const rows = [...list.querySelectorAll(".row")];
+  let target = rows.length - 1;
+  for (let index = 0; index < rows.length; index += 1) {
+    const rect = rows[index].getBoundingClientRect();
+    if (event.clientY < rect.top + rect.height / 2) {
+      target = index;
+      break;
+    }
+  }
+  const current = rows.indexOf(drag.row);
+  if (target === current) return;
+  if (target > current) list.insertBefore(drag.row, rows[target].nextSibling);
+  else list.insertBefore(drag.row, rows[target]);
+  [...list.querySelectorAll(".row")].forEach((row, index) => {
+    row.querySelector(".rank").textContent = String(index + 1);
+  });
+}
+
+document.addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest(".handle");
+  if (!handle || state.openId) return;
+  event.preventDefault();
+  const row = handle.closest(".row");
+  drag = { row, pointerId: event.pointerId };
+  row.classList.add("is-dragging");
+  try {
+    handle.setPointerCapture(event.pointerId);
+  } catch (error) {
+    /* The document listener still receives the move. */
+  }
+});
+
+document.addEventListener("pointermove", onPointerMove);
+
+document.addEventListener("pointerup", (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  drag.row.classList.remove("is-dragging");
+  drag = null;
+  syncOrderFromDom();
+  commit();
+  render();
+});
+
+document.addEventListener("pointercancel", (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  drag.row.classList.remove("is-dragging");
+  drag = null;
+  render();
+});
+
+document.addEventListener("click", (event) => {
+  try {
+    const move = event.target.closest("[data-move]");
+    if (move) {
+      moveItem(move.dataset.id, move.dataset.move === "up" ? -1 : 1);
+      return;
+    }
+    const opener = event.target.closest("[data-open]");
+    if (opener && !event.target.closest(".sheet")) {
+      const task = opener.dataset.task;
+      openSheet(opener.dataset.open, task == null ? null : Number(task));
+      return;
+    }
+    if (event.target.closest("[data-close]")) {
+      closeSheet();
+      return;
+    }
+    if (event.target.closest("[data-edit]")) {
+      state.editing = !state.editing;
+      render();
+      if (state.editing) sheetRoot.querySelector("[data-field='title']")?.focus();
+      return;
+    }
+    const remove = event.target.closest("[data-remove]");
+    if (remove) {
+      const item = itemById(state.openId);
+      item.tasks.splice(Number(remove.dataset.remove), 1);
+      commit();
+      render();
+      return;
+    }
+    if (event.target.closest("[data-add]")) {
+      const item = itemById(state.openId);
+      item.tasks.push({ text: "", done: false });
+      commit();
+      render();
+      const inputs = sheetRoot.querySelectorAll("[data-task-text]");
+      inputs[inputs.length - 1]?.focus();
+      return;
+    }
+    const phase = event.target.closest("[data-status]");
+    if (phase) {
+      itemById(state.openId).status = phase.dataset.status;
+      commit();
+      render();
+    }
+  } catch (error) {
+    fail("Could not update the list.");
+  }
+});
+
+document.addEventListener("change", (event) => {
+  const box = event.target.closest("[data-check]");
+  if (!box) return;
+  try {
+    const item = itemById(state.openId);
+    const index = Number(box.dataset.check);
+    item.tasks[index].done = box.checked;
+    box.closest(".task").classList.toggle("is-done", box.checked);
+    const row = document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .meter`);
+    if (row) row.outerHTML = meterHtml(item);
+    const next = app.querySelector(".next");
+    if (next) next.outerHTML = renderNext();
+    commit();
+  } catch (error) {
+    fail("Could not update the list.");
+  }
+});
+
+document.addEventListener("input", (event) => {
+  const item = state.openId ? itemById(state.openId) : null;
+  if (!item) return;
+  const field = event.target.dataset.field;
+  const taskIndex = event.target.dataset.taskText;
+  try {
+    if (field) item[field] = event.target.value;
+    if (taskIndex != null) item.tasks[Number(taskIndex)].text = event.target.value;
+    if (field === "title") {
+      const title = document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .title`);
+      if (title) title.textContent = item.title;
+    }
+    if (field === "statusNote" || taskIndex != null) {
+      const next = app.querySelector(".next");
+      if (next) next.outerHTML = renderNext();
+    }
+    commit();
+  } catch (error) {
+    fail("Could not update the list.");
+  }
+});
+
+let grabDrag = null;
+
+document.addEventListener("pointerdown", (event) => {
+  const grab = event.target.closest(".grab");
+  if (!grab) return;
+  grabDrag = { pointerId: event.pointerId, startY: event.clientY };
+  try {
+    grab.setPointerCapture(event.pointerId);
+  } catch (error) {
+    /* Release still closes from the document listener. */
+  }
+});
+
+document.addEventListener("pointermove", (event) => {
+  if (!grabDrag || event.pointerId !== grabDrag.pointerId) return;
+  const sheet = sheetRoot.querySelector(".sheet");
+  if (!sheet) return;
+  const dy = Math.max(0, event.clientY - grabDrag.startY);
+  sheet.style.transform = `translate(-50%, ${dy}px)`;
+});
+
+document.addEventListener("pointerup", (event) => {
+  if (!grabDrag || event.pointerId !== grabDrag.pointerId) return;
+  const sheet = sheetRoot.querySelector(".sheet");
+  const dy = Math.max(0, event.clientY - grabDrag.startY);
+  grabDrag = null;
+  if (!sheet) return;
+  sheet.style.transform = "";
+  if (dy > 90) closeSheet();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.openId) closeSheet();
+});
+
+render();
