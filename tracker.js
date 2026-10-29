@@ -1,7 +1,12 @@
 const STORAGE_KEY = "pocket-work-tracker";
 const STARTER_KEY = "pocket-work-tracker-starter";
-const STARTER_VERSION = "1";
+const STARTER_VERSION = "2";
 const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
+const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
+
+function reviewTasks() {
+  return REVIEW.map((text) => ({ text, done: false }));
+}
 
 const STARTER = [
   {
@@ -56,7 +61,7 @@ const STARTER = [
   ...item,
   color: COLORS[index % COLORS.length],
   status: "evaluate",
-  tasks: [],
+  tasks: reviewTasks(),
 }));
 
 const PHASES = [
@@ -92,19 +97,22 @@ function starterItems() {
   return STARTER.map((item) => normalizeItem(item)).filter(Boolean);
 }
 
+function withReview(item) {
+  const have = new Set(item.tasks.map((task) => task.text.trim().toLowerCase()));
+  const missing = reviewTasks().filter((task) => !have.has(task.text.toLowerCase()));
+  return { ...item, tasks: [...missing, ...item.tasks] };
+}
+
 function loadItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     const saved = Array.isArray(parsed) ? parsed.map(normalizeItem).filter(Boolean) : [];
-    const version = localStorage.getItem(STARTER_KEY);
-    if (version !== STARTER_VERSION && saved.length === 0) {
-      const items = starterItems();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      localStorage.setItem(STARTER_KEY, STARTER_VERSION);
-      return items;
-    }
-    return saved;
+    if (localStorage.getItem(STARTER_KEY) === STARTER_VERSION) return saved;
+    const items = (saved.length ? saved : starterItems()).map(withReview);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    localStorage.setItem(STARTER_KEY, STARTER_VERSION);
+    return items;
   } catch (error) {
     return starterItems();
   }
@@ -411,7 +419,7 @@ function addTask() {
     color: COLORS[state.items.length % COLORS.length],
     status: "evaluate",
     statusNote: "",
-    tasks: [],
+    tasks: reviewTasks(),
   };
   state.items.push(item);
   closing = false;
