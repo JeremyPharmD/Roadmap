@@ -2,4 +2,4 @@
 
 A phone-width work tracker. Open `index.html`.
 
-The list is the product. Tap a row to open its sheet. Checked key work updates that row’s percent. Up, down, and the drag handle save the order for the session.
+Each row is one task. Open it and move the phase: Evaluate, then Investigate feasibility, then Ready for review. The bar follows that phase. Up, down, and the drag handle keep the order while the page is open.

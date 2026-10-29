@@ -273,11 +273,12 @@ main {
 }
 
 .size {
-  min-width: 1em;
-  color: var(--muted);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+  max-width: 6.6em;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: right;
 }
 
 .track {

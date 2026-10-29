@@ -1,44 +1,55 @@
 const SEED = [
   {
-    id: "weekly-review",
-    title: "Weekly review",
-    description: "The pass over what is still open.",
+    id: "list-open-loops",
+    title: "List open loops",
+    description: "Write down what is still unfinished.",
     color: "#b54a2a",
-    status: "current",
-    statusNote: "Two lines are still open.",
-    tasks: [
-      { text: "List open loops", done: true },
-      { text: "Pick the next three", done: false },
-      { text: "Write the status note", done: false },
-    ],
+    status: "evaluate",
+    statusNote: "Still gathering what is open.",
+    tasks: [],
   },
   {
-    id: "handoffs",
-    title: "Handoffs",
-    description: "Move a piece of work to the person who finishes it.",
+    id: "pick-the-next-three",
+    title: "Pick the next three",
+    description: "Choose the three tasks to work next.",
+    color: "#b54a2a",
+    status: "evaluate",
+    statusNote: "Waiting on the open-loop list.",
+    tasks: [],
+  },
+  {
+    id: "write-the-status-note",
+    title: "Write the status note",
+    description: "One sentence on where this stands.",
     color: "#1f6f8b",
-    status: "next",
-    statusNote: "The handoff starts with an owner.",
-    tasks: [
-      { text: "Name the owner", done: false },
-      { text: "Write the done line", done: false },
-    ],
+    status: "feasibility",
+    statusNote: "Checking whether the note is enough.",
+    tasks: [],
   },
   {
-    id: "archive",
-    title: "Archive",
-    description: "Kept out of the active pass.",
+    id: "name-the-owner",
+    title: "Name the owner",
+    description: "Name the person who will finish it.",
+    color: "#1f6f8b",
+    status: "feasibility",
+    statusNote: "This depends on who can take it.",
+    tasks: [],
+  },
+  {
+    id: "write-the-done-line",
+    title: "Write the done line",
+    description: "Say what finished looks like.",
     color: "#6b5e52",
-    status: "later",
-    statusNote: "Nothing is checked yet.",
+    status: "review",
+    statusNote: "Ready for someone to read the line.",
     tasks: [],
   },
 ];
 
 const PHASES = [
-  { id: "current", label: "Current phase" },
-  { id: "next", label: "Next" },
-  { id: "later", label: "Later" },
+  { id: "evaluate", label: "Evaluate", short: "Evaluate" },
+  { id: "feasibility", label: "Investigate feasibility", short: "Feasibility" },
+  { id: "review", label: "Ready for review", short: "Review" },
 ];
 
 const state = {
@@ -68,35 +79,34 @@ function itemById(id) {
   return state.items.find((item) => item.id === id);
 }
 
+function phaseOf(status) {
+  return PHASES.find((phase) => phase.id === status) || PHASES[0];
+}
+
 function progressOf(item) {
-  const total = item.tasks.length;
-  if (total === 0) {
-    return { percent: 0, fraction: "—/—", percentLabel: "—" };
+  const steps = item.tasks.length;
+  if (steps > 0) {
+    const done = item.tasks.filter((task) => task.done).length;
+    const percent = Math.round((done / steps) * 100);
+    return { percent, fraction: `${done}/${steps}`, percentLabel: `${percent}%` };
   }
-  const done = item.tasks.filter((task) => task.done).length;
+  const step = PHASES.findIndex((phase) => phase.id === item.status) + 1;
+  const current = step > 0 ? step : 1;
+  const percent = Math.round((current / PHASES.length) * 100);
   return {
-    percent: Math.round((done / total) * 100),
-    fraction: `${done}/${total}`,
-    percentLabel: `${Math.round((done / total) * 100)}%`,
+    percent,
+    fraction: `${current}/${PHASES.length}`,
+    percentLabel: `${percent}%`,
   };
 }
 
 function openLines() {
-  const lines = [];
-  state.items.forEach((item) => {
-    item.tasks.forEach((task, taskIndex) => {
-      if (!task.done) {
-        lines.push({
-          itemId: item.id,
-          taskIndex,
-          text: task.text,
-          reason: item.statusNote || item.description,
-          color: item.color,
-        });
-      }
-    });
-  });
-  return lines.slice(0, 3);
+  return state.items.slice(0, 3).map((item) => ({
+    itemId: item.id,
+    text: item.title,
+    reason: item.statusNote || phaseOf(item.status).label,
+    color: item.color,
+  }));
 }
 
 function commit() {
@@ -116,7 +126,7 @@ function fail(message) {
 
 function meterHtml(item) {
   const progress = progressOf(item);
-  const size = item.size ? escapeHtml(item.size) : "—";
+  const size = item.size ? escapeHtml(item.size) : escapeHtml(phaseOf(item.status).short);
   return `
     <span class="meter">
       <span class="size">${size}</span>
@@ -139,7 +149,6 @@ function renderNext() {
               type="button"
               class="next-line"
               data-open="${escapeHtml(line.itemId)}"
-              data-task="${line.taskIndex}"
               style="--accent:${escapeHtml(line.color)}"
             >
               <span class="n">${index + 1}</span>
@@ -151,7 +160,7 @@ function renderNext() {
           `,
         )
         .join("")
-    : `<p class="next-empty">No open key work.</p>`;
+    : `<p class="next-empty">No open tasks.</p>`;
   return `<section class="next" aria-label="Next 3"><h2>Next 3</h2>${body}</section>`;
 }
 
@@ -257,11 +266,10 @@ function renderSheet() {
           ${note}
         </div>
         <div class="key-head">
-          <h3>Key work</h3>
+          ${item.tasks.length || state.editing ? "<h3>Key work</h3>" : "<span></span>"}
           <button type="button" class="text-btn" data-edit>${state.editing ? "Done" : "Edit"}</button>
         </div>
-        <div class="tasks">${tasks}</div>
-        ${add}
+        ${item.tasks.length || state.editing ? `<div class="tasks">${tasks}</div>${add}` : ""}
       </div>
     </div>
   `;
