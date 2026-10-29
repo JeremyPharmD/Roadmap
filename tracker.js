@@ -1,5 +1,63 @@
 const STORAGE_KEY = "pocket-work-tracker";
+const STARTER_KEY = "pocket-work-tracker-starter";
+const STARTER_VERSION = "1";
 const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
+
+const STARTER = [
+  {
+    id: "best-rx-quantity-refill",
+    title: "Best RX Quantity and Refill Resolution",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "branding-packaging-onboarding",
+    title: "Branding and packaging process onboarding",
+    description: "Includes inventory and bottling.",
+    statusNote: "",
+  },
+  {
+    id: "compliance-support",
+    title: "Compliance support",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "best-rx-enterprise-contract",
+    title: "Best RX Enterprise Contract Plan Removal",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "standalone-product-sites",
+    title: "Standalone sites for each of our products",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "ai-agents-support",
+    title: "AI agents for support",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "try-epiq",
+    title: "Try Epiq",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "white-label-offering",
+    title: "White label offering",
+    description: "",
+    statusNote: "",
+  },
+].map((item, index) => ({
+  ...item,
+  color: COLORS[index % COLORS.length],
+  status: "evaluate",
+  tasks: [],
+}));
 
 const PHASES = [
   { id: "evaluate", label: "Evaluate", short: "Evaluate" },
@@ -30,15 +88,25 @@ function normalizeItem(raw) {
   };
 }
 
+function starterItems() {
+  return STARTER.map((item) => normalizeItem(item)).filter(Boolean);
+}
+
 function loadItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeItem).filter(Boolean);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const saved = Array.isArray(parsed) ? parsed.map(normalizeItem).filter(Boolean) : [];
+    const version = localStorage.getItem(STARTER_KEY);
+    if (version !== STARTER_VERSION && saved.length === 0) {
+      const items = starterItems();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(STARTER_KEY, STARTER_VERSION);
+      return items;
+    }
+    return saved;
   } catch (error) {
-    return [];
+    return starterItems();
   }
 }
 
