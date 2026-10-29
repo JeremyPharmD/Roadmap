@@ -143,19 +143,12 @@ function phaseOf(status) {
 
 function progressOf(item) {
   const steps = item.tasks.length;
-  if (steps > 0) {
-    const done = item.tasks.filter((task) => task.done).length;
-    const percent = Math.round((done / steps) * 100);
-    return { percent, fraction: `${done}/${steps}`, percentLabel: `${percent}%` };
+  const done = item.tasks.filter((task) => task.done).length;
+  if (steps === 0) {
+    return { percent: 0, fraction: "—", percentLabel: "0%" };
   }
-  const step = PHASES.findIndex((phase) => phase.id === item.status) + 1;
-  const current = step > 0 ? step : 1;
-  const percent = Math.round((current / PHASES.length) * 100);
-  return {
-    percent,
-    fraction: `${current}/${PHASES.length}`,
-    percentLabel: `${percent}%`,
-  };
+  const percent = Math.round((done / steps) * 100);
+  return { percent, fraction: `${done}/${steps}`, percentLabel: `${percent}%` };
 }
 
 function openLines() {
@@ -274,7 +267,7 @@ function taskHtml(task, index, editing) {
   return `
     <div class="task${doneClass}" data-task="${index}">
       <input type="checkbox" ${task.done ? "checked" : ""} data-check="${index}" />
-      <input class="field task-input" type="text" value="${escapeHtml(task.text)}" data-task-text="${index}" aria-label="Key work ${index + 1}" />
+      <input class="field task-input" type="text" value="${escapeHtml(task.text)}" data-task-text="${index}" aria-label="Requirement ${index + 1}" />
       <button type="button" class="remove" data-remove="${index}">Remove</button>
     </div>
   `;
@@ -306,7 +299,10 @@ function renderSheet() {
        <input class="field desc-input" type="text" value="${escapeHtml(item.description)}" data-field="description" aria-label="Description" />`
     : `<h2 id="sheet-title">${escapeHtml(item.title || "New task")}</h2><p class="desc">${escapeHtml(item.description)}</p>`;
   const tasks = item.tasks.map((task, index) => taskHtml(task, index, state.editing)).join("");
-  const add = state.editing ? `<button type="button" class="add-line" data-add>Add a line</button>` : "";
+  const add = state.editing ? `<button type="button" class="add-line" data-add>Add a requirement</button>` : "";
+  const emptyRequirements = item.tasks.length
+    ? ""
+    : `<p class="next-empty">No requirements yet. The percent comes from these.</p>`;
   const removeTask = state.editing
     ? `<button type="button" class="remove-task" data-delete-task>Remove task</button>`
     : "";
@@ -334,10 +330,11 @@ function renderSheet() {
           ${note}
         </div>
         <div class="key-head">
-          ${item.tasks.length || state.editing ? "<h3>Key work</h3>" : "<span></span>"}
+          <h3>Requirements</h3>
           <button type="button" class="text-btn" data-edit>${state.editing ? "Done" : "Edit"}</button>
         </div>
-        ${item.tasks.length || state.editing ? `<div class="tasks">${tasks}</div>${add}` : ""}
+        ${item.tasks.length ? `<div class="tasks">${tasks}</div>` : emptyRequirements}
+        ${add}
         ${removeTask}
       </div>
     </div>
