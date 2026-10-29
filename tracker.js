@@ -1,5 +1,94 @@
 const STORAGE_KEY = "pocket-work-tracker";
+const STARTER_KEY = "pocket-work-tracker-starter";
+const STARTER_VERSION = "3";
+const CAPITAL_ID = "capital-it-spend";
 const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
+const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
+const SPEND = [
+  "BestRx licensing",
+  "BestRx enterprise contract",
+  "Offshore development",
+  "Total IT labor, including offshore",
+  "Redline solutions",
+];
+
+function reviewTasks() {
+  return REVIEW.map((text) => ({ text, done: false }));
+}
+
+function spendTasks() {
+  return SPEND.map((text) => ({ text, done: false }));
+}
+
+function capitalItem(index) {
+  return {
+    id: CAPITAL_ID,
+    title: "Capital IT spend",
+    description: "Heavy licensing, subscriptions, and IT labor, with a target to reduce the total.",
+    statusNote: "",
+    color: COLORS[index % COLORS.length],
+    status: "evaluate",
+    tasks: [...reviewTasks(), ...spendTasks()],
+  };
+}
+
+const STARTER = [
+  {
+    id: "best-rx-quantity-refill",
+    title: "Best RX Quantity and Refill Resolution",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "branding-packaging-onboarding",
+    title: "Branding and packaging process onboarding",
+    description: "Includes inventory and bottling.",
+    statusNote: "",
+  },
+  {
+    id: "compliance-support",
+    title: "Compliance support",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "best-rx-enterprise-contract",
+    title: "Best RX Enterprise Contract Plan Removal",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "standalone-product-sites",
+    title: "Standalone sites for each of our products",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "ai-agents-support",
+    title: "AI agents for support",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "try-epiq",
+    title: "Try Epiq",
+    description: "",
+    statusNote: "",
+  },
+  {
+    id: "white-label-offering",
+    title: "White label offering",
+    description: "",
+    statusNote: "",
+  },
+].map((item, index) => ({
+  ...item,
+  color: COLORS[index % COLORS.length],
+  status: "evaluate",
+  tasks: reviewTasks(),
+}));
+
+STARTER.push(capitalItem(STARTER.length));
 
 const PHASES = [
   { id: "evaluate", label: "Evaluate", short: "Evaluate" },
@@ -30,15 +119,44 @@ function normalizeItem(raw) {
   };
 }
 
+function starterItems() {
+  return STARTER.map((item) => normalizeItem(item)).filter(Boolean);
+}
+
+function withReview(item) {
+  const have = new Set(item.tasks.map((task) => task.text.trim().toLowerCase()));
+  const missing = reviewTasks().filter((task) => !have.has(task.text.toLowerCase()));
+  return { ...item, tasks: [...missing, ...item.tasks] };
+}
+
+function ensureCapital(items) {
+  const index = items.findIndex(
+    (item) => item.id === CAPITAL_ID || item.title.trim().toLowerCase() === "capital it spend",
+  );
+  if (index === -1) return [...items, capitalItem(items.length)];
+  const have = new Set(items[index].tasks.map((task) => task.text.trim().toLowerCase()));
+  const missing = spendTasks().filter((task) => !have.has(task.text.toLowerCase()));
+  if (!missing.length) return items;
+  const next = items.slice();
+  next[index] = { ...items[index], tasks: [...items[index].tasks, ...missing] };
+  return next;
+}
+
 function loadItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeItem).filter(Boolean);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const saved = Array.isArray(parsed) ? parsed.map(normalizeItem).filter(Boolean) : [];
+    const version = localStorage.getItem(STARTER_KEY);
+    if (version === STARTER_VERSION) return saved;
+    let items = saved.length ? saved : starterItems();
+    if (version !== "2") items = items.map(withReview);
+    items = ensureCapital(items);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    localStorage.setItem(STARTER_KEY, STARTER_VERSION);
+    return items;
   } catch (error) {
-    return [];
+    return starterItems();
   }
 }
 
@@ -75,19 +193,12 @@ function phaseOf(status) {
 
 function progressOf(item) {
   const steps = item.tasks.length;
-  if (steps > 0) {
-    const done = item.tasks.filter((task) => task.done).length;
-    const percent = Math.round((done / steps) * 100);
-    return { percent, fraction: `${done}/${steps}`, percentLabel: `${percent}%` };
+  const done = item.tasks.filter((task) => task.done).length;
+  if (steps === 0) {
+    return { percent: 0, fraction: "—", percentLabel: "0%" };
   }
-  const step = PHASES.findIndex((phase) => phase.id === item.status) + 1;
-  const current = step > 0 ? step : 1;
-  const percent = Math.round((current / PHASES.length) * 100);
-  return {
-    percent,
-    fraction: `${current}/${PHASES.length}`,
-    percentLabel: `${percent}%`,
-  };
+  const percent = Math.round((done / steps) * 100);
+  return { percent, fraction: `${done}/${steps}`, percentLabel: `${percent}%` };
 }
 
 function openLines() {
@@ -206,7 +317,7 @@ function taskHtml(task, index, editing) {
   return `
     <div class="task${doneClass}" data-task="${index}">
       <input type="checkbox" ${task.done ? "checked" : ""} data-check="${index}" />
-      <input class="field task-input" type="text" value="${escapeHtml(task.text)}" data-task-text="${index}" aria-label="Key work ${index + 1}" />
+      <input class="field task-input" type="text" value="${escapeHtml(task.text)}" data-task-text="${index}" aria-label="Requirement ${index + 1}" />
       <button type="button" class="remove" data-remove="${index}">Remove</button>
     </div>
   `;
@@ -238,7 +349,10 @@ function renderSheet() {
        <input class="field desc-input" type="text" value="${escapeHtml(item.description)}" data-field="description" aria-label="Description" />`
     : `<h2 id="sheet-title">${escapeHtml(item.title || "New task")}</h2><p class="desc">${escapeHtml(item.description)}</p>`;
   const tasks = item.tasks.map((task, index) => taskHtml(task, index, state.editing)).join("");
-  const add = state.editing ? `<button type="button" class="add-line" data-add>Add a line</button>` : "";
+  const add = state.editing ? `<button type="button" class="add-line" data-add>Add a requirement</button>` : "";
+  const emptyRequirements = item.tasks.length
+    ? ""
+    : `<p class="next-empty">No requirements yet. The percent comes from these.</p>`;
   const removeTask = state.editing
     ? `<button type="button" class="remove-task" data-delete-task>Remove task</button>`
     : "";
@@ -266,10 +380,11 @@ function renderSheet() {
           ${note}
         </div>
         <div class="key-head">
-          ${item.tasks.length || state.editing ? "<h3>Key work</h3>" : "<span></span>"}
+          <h3>Requirements</h3>
           <button type="button" class="text-btn" data-edit>${state.editing ? "Done" : "Edit"}</button>
         </div>
-        ${item.tasks.length || state.editing ? `<div class="tasks">${tasks}</div>${add}` : ""}
+        ${item.tasks.length ? `<div class="tasks">${tasks}</div>` : emptyRequirements}
+        ${add}
         ${removeTask}
       </div>
     </div>
@@ -346,7 +461,7 @@ function addTask() {
     color: COLORS[state.items.length % COLORS.length],
     status: "evaluate",
     statusNote: "",
-    tasks: [],
+    tasks: reviewTasks(),
   };
   state.items.push(item);
   closing = false;
