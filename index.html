@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="tracker.css?v=7" />
+    <link rel="stylesheet" href="tracker.css?v=8" />
   </head>
   <body>
     <div class="wrap">
@@ -25,10 +25,18 @@
         </div>
         <p class="tag">Track • Do • Finish</p>
       </header>
-      <p id="status" class="status" aria-live="polite"></p>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <div id="recovery" class="recovery" hidden></div>
+      <div class="tools">
+        <button type="button" data-export>Export</button>
+        <button type="button" data-import>Import</button>
+        <input id="import-file" type="file" accept="application/json,.json" hidden />
+      </div>
       <main id="app"></main>
     </div>
     <div id="sheet-root"></div>
-    <script src="tracker.js?v=7"></script>
+    <div id="confirm-root"></div>
+    <script src="tracker-model.js?v=8"></script>
+    <script src="tracker.js?v=8"></script>
   </body>
 </html>
