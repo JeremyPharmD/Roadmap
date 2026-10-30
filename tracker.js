@@ -166,6 +166,7 @@ function load() {
 }
 
 function meterHtml(item) {
+  if (item.kind === "collection") return '<span class="meter collection-label">Data collection</span>';
   const progress = model.progressOf(item);
   return `
     <span class="meter">
@@ -225,12 +226,14 @@ function renderList() {
           <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}">
             <span class="grip" aria-hidden="true"></span>
           </button>
-          <span class="rank">${index + 1}</span>
+
           <button type="button" class="open" data-open="${escapeHtml(item.id)}">
+            <span class="module-number rank">Module ${index + 1}</span>
             <span class="title-line">
               <span class="title${placeholder}">${escapeHtml(title)}</span>
               <span class="chevron" aria-hidden="true"></span>
             </span>
+            <span class="card-description"${item.description ? "" : " hidden"}>${escapeHtml(item.description)}</span>
             <span class="meta"${meta ? "" : " hidden"}>${escapeHtml(meta)}</span>
             ${meterHtml(item)}
           </button>
@@ -246,11 +249,11 @@ function renderList() {
       `;
     })
     .join("");
-  return `<div id="list">${rows}</div><button type="button" class="add-task" data-add-task>Add a task</button>`;
+  return `<div id="list">${rows}</div><button type="button" class="add-task" data-add-task>Add a module</button>`;
 }
 
 function renderBoard() {
-  app.innerHTML = renderNext() + renderList();
+  app.innerHTML = `<div class="list-heading"><h2>Modules</h2><p>Tap to open. Hold a card to lift and reorder.</p></div>` + renderList();
 }
 
 function answerField(task, index) {
@@ -262,7 +265,13 @@ function answerField(task, index) {
   return `<input class="field answer" type="text" maxlength="160" value="${escapeHtml(task.answer)}" data-task-answer="${index}" aria-label="Answer for ${escapeHtml(task.text)}" placeholder="Short answer" />`;
 }
 
-function taskHtml(task, index, editing) {
+function taskHtml(task, index, editing, collection = false) {
+  if (collection) return `<div class="collection-field" data-task="${index}">
+    ${editing ? `<input class="field" type="text" value="${escapeHtml(task.text)}" data-task-text="${index}" aria-label="Field ${index + 1}" />` : `<label for="collection-${index}">${escapeHtml(task.text)}</label>`}
+    <textarea id="collection-${index}" class="field" rows="2" maxlength="2000" data-task-answer="${index}" aria-label="${escapeHtml(task.text)}" placeholder="Enter collected data">${escapeHtml(task.answer)}</textarea>
+    ${editing ? `<button type="button" class="remove" data-remove="${index}">Remove field</button>` : ""}
+  </div>`;
+
   const doneClass = task.done ? " is-done" : "";
   const answer = answerField(task, index);
   if (!editing) {
@@ -314,13 +323,13 @@ function renderSheet() {
     ? `<textarea id="sheet-title" class="field title-input" rows="3" data-field="title" aria-label="Title" placeholder="New task">${escapeHtml(item.title)}</textarea>
        <input class="field desc-input" type="text" value="${escapeHtml(item.description)}" data-field="description" aria-label="Description" />`
     : `<h2 id="sheet-title">${escapeHtml(item.title || "New task")}</h2><p class="desc">${escapeHtml(item.description)}</p>`;
-  const tasks = item.tasks.map((task, index) => taskHtml(task, index, state.editing)).join("");
-  const add = state.editing ? `<button type="button" class="add-line" data-add>Add a requirement</button>` : "";
+  const tasks = item.tasks.map((task, index) => taskHtml(task, index, state.editing, item.kind === "collection")).join("");
+  const add = state.editing ? `<button type="button" class="add-line" data-add>${item.kind === "collection" ? "Add a field" : "Add a requirement"}</button>` : "";
   const emptyRequirements = item.tasks.length
     ? ""
-    : `<p class="next-empty">No requirements yet. Checklist complete stays at 0% until a line is checked.</p>`;
+    : `<p class="next-empty">${item.kind === "collection" ? "No fields yet. Select Edit to add a data field." : "No requirements yet. Checklist complete stays at 0% until a line is checked."}</p>`;
   const removeTask = state.editing
-    ? `<button type="button" class="remove-task" data-delete-task>Remove task</button>`
+    ? `<button type="button" class="remove-task" data-delete-task>Remove module</button>`
     : "";
 
   sheetRoot.innerHTML = `
@@ -339,10 +348,10 @@ function renderSheet() {
       </div>
       <div class="sheet-body">
         <div class="identity">
-          <span class="rank">${rank}</span>
+          <span class="rank">Module ${rank}</span>
           <div>${heading}</div>
         </div>
-        <div class="phase-row">
+        ${item.kind === "collection" ? "" : `<div class="phase-row">
           <div class="segments" role="group" aria-label="Phase">${phases}</div>
           ${note}
         </div>
@@ -357,11 +366,12 @@ function renderSheet() {
             <input class="field" type="date" value="${escapeHtml(item.targetDate)}" data-field="targetDate" />
           </label>
         </div>
+        `}
         <div class="key-head">
-          <h3>Requirements</h3>
+          <h3>${item.kind === "collection" ? "Collected data" : "Requirements"}</h3>
           <button type="button" class="text-btn" data-edit>${state.editing ? "Done" : "Edit"}</button>
         </div>
-        <p class="check-line">${escapeHtml(progress.label)} · ${escapeHtml(progress.fraction)} · ${escapeHtml(progress.percentLabel)}</p>
+        ${item.kind === "collection" ? "" : `<p class="check-line">${escapeHtml(progress.label)} · ${escapeHtml(progress.fraction)} · ${escapeHtml(progress.percentLabel)}</p>`}
         ${item.tasks.length ? `<div class="tasks">${tasks}</div>` : emptyRequirements}
         ${add}
         ${removeTask}
@@ -657,7 +667,7 @@ function syncOrderFromDom() {
 }
 
 function placeDrag(event) {
-  drag.row.style.transform = `translateY(${event.clientY - drag.startY - drag.compensation}px)`;
+  drag.row.style.transform = `translateY(${event.clientY - drag.startY - drag.compensation + window.scrollY - drag.startScroll}px)`;
 }
 
 function onPointerMove(event) {
@@ -700,7 +710,7 @@ function onPointerMove(event) {
   }
   if (!swapped) return;
   [...list.querySelectorAll(".row")].forEach((row, index, rows) => {
-    row.querySelector(".rank").textContent = String(index + 1);
+    row.querySelector(".rank").textContent = `Module ${index + 1}`;
     const up = row.querySelector('[data-move="up"]');
     const down = row.querySelector('[data-move="down"]');
     if (up) up.disabled = index === 0;
@@ -840,43 +850,114 @@ function trapTab(event, root) {
   }
 }
 
-document.addEventListener("pointerdown", (event) => {
-  const handle = event.target.closest(".handle");
-  if (!handle || state.openId || pendingConfirm) return;
-  event.preventDefault();
-  const row = handle.closest(".row");
-  drag = { row, pointerId: event.pointerId, startY: event.clientY, compensation: 0 };
+let hold = null;
+let dragFrame = null;
+let suppressClickUntil = 0;
+
+function clearHold() {
+  if (hold) clearTimeout(hold.timer);
+  hold = null;
+}
+
+function beginDrag(row, pointerId, clientY) {
+  drag = { row, pointerId, startY: clientY, clientY, compensation: 0, startScroll: window.scrollY };
   row.classList.add("is-dragging");
-  try {
-    handle.setPointerCapture(event.pointerId);
-  } catch (error) {
-    /* The document listener still receives the move. */
+  setStatus(`Lifted ${itemById(row.dataset.id).title}. Drag up or down.`);
+  dragFrame = requestAnimationFrame(scrollDrag);
+}
+
+function scrollDrag() {
+  if (!drag) return;
+  const edge = 72;
+  const speed = drag.clientY < edge ? -Math.ceil((edge - drag.clientY) / 6)
+    : drag.clientY > window.innerHeight - edge ? Math.ceil((drag.clientY - window.innerHeight + edge) / 6) : 0;
+  if (speed) {
+    window.scrollBy(0, Math.max(-18, Math.min(18, speed)));
+    onPointerMove({ pointerId: drag.pointerId, clientY: drag.clientY });
   }
-});
+  dragFrame = requestAnimationFrame(scrollDrag);
+}
 
-document.addEventListener("pointermove", onPointerMove);
-
-document.addEventListener("pointerup", (event) => {
-  if (!drag || event.pointerId !== drag.pointerId) return;
+function finishDrag(cancel = false) {
+  clearHold();
+  if (!drag) return;
+  cancelAnimationFrame(dragFrame);
   const before = rowTops();
   const movedId = drag.row.dataset.id;
   drag.row.classList.remove("is-dragging");
   drag.row.style.transform = "";
   drag = null;
-  syncOrderFromDom();
-  save();
+  suppressClickUntil = Date.now() + 500;
+  if (!cancel) { syncOrderFromDom(); save(); }
   render();
   slideRows(before, movedId);
+  if (!cancel) setStatus(`Moved to Module ${state.items.findIndex((item) => item.id === movedId) + 1}. Saved on this browser.`);
+}
+
+document.addEventListener("pointerdown", (event) => {
+  if (state.openId || pendingConfirm || event.button !== 0 || event.isPrimary === false) return;
+  const row = event.target.closest("#list .row");
+  if (!row || event.target.closest(".nudge")) return;
+  const handle = event.target.closest(".handle");
+  // Touch cards use the hold gesture below, allowing ordinary page scrolling.
+  if (event.pointerType === "touch" && !handle) return;
+  if (handle) {
+    event.preventDefault();
+    handle.setPointerCapture?.(event.pointerId);
+    beginDrag(row, event.pointerId, event.clientY);
+  } else {
+    clearHold();
+    hold = { x: event.clientX, y: event.clientY, timer: setTimeout(() => {
+      beginDrag(row, event.pointerId, event.clientY); clearHold();
+    }, 240) };
+  }
 });
 
+document.addEventListener("pointermove", (event) => {
+  if (hold && Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 8) clearHold();
+  if (drag && event.pointerId === drag.pointerId) { drag.clientY = event.clientY; onPointerMove(event); }
+});
+document.addEventListener("pointerup", (event) => {
+  clearHold();
+  if (drag && event.pointerId === drag.pointerId) finishDrag();
+});
 document.addEventListener("pointercancel", (event) => {
-  if (!drag || event.pointerId !== drag.pointerId) return;
-  drag.row.classList.remove("is-dragging");
-  drag = null;
-  render();
+  clearHold();
+  if (drag && event.pointerId === drag.pointerId) finishDrag(true);
+});
+
+document.addEventListener("touchstart", (event) => {
+  if (state.openId || pendingConfirm || event.target.closest(".handle, .nudge")) return;
+  const row = event.target.closest("#list .row");
+  if (!row || event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  clearHold();
+  hold = { x: touch.clientX, y: touch.clientY, timer: setTimeout(() => {
+    beginDrag(row, "touch-card", touch.clientY); clearHold();
+  }, 240) };
+}, { passive: true });
+document.addEventListener("touchmove", (event) => {
+  const touch = event.touches[0];
+  if (hold && Math.hypot(touch.clientX - hold.x, touch.clientY - hold.y) > 8) clearHold();
+  if (!drag || drag.pointerId !== "touch-card") return;
+  if (event.cancelable) event.preventDefault();
+  drag.clientY = touch.clientY;
+  onPointerMove({ pointerId: "touch-card", clientY: touch.clientY });
+}, { passive: false });
+document.addEventListener("touchend", () => {
+  clearHold();
+  if (drag?.pointerId === "touch-card") finishDrag();
+});
+document.addEventListener("touchcancel", () => {
+  clearHold();
+  if (drag?.pointerId === "touch-card") finishDrag(true);
+});
+document.addEventListener("contextmenu", (event) => {
+  if (drag || event.target.closest("#list .row")) event.preventDefault();
 });
 
 document.addEventListener("click", (event) => {
+  if (Date.now() < suppressClickUntil) { event.preventDefault(); return; }
   try {
     if (event.target.closest("[data-undo]")) {
       undoDelete();
@@ -1079,6 +1160,7 @@ document.addEventListener("pointerup", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && drag) { finishDrag(true); return; }
   if (event.key === "Enter" && event.target.dataset && event.target.dataset.field === "title") {
     event.preventDefault();
   }

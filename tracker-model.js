@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const STORAGE_KEY = "pocket-work-tracker";
   const STARTER_KEY = "pocket-work-tracker-starter";
-  const STARTER_VERSION = "5";
+  const STARTER_VERSION = "6";
   const CAPITAL_ID = "capital-it-spend";
   const SCALE_ID = "scale-analysis";
   const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
@@ -64,7 +64,7 @@
     if (!task || typeof task !== "object") return null;
     const text = cleanText(task.text, 2000);
     const kind = reviewKind(text);
-    let answer = cleanText(task.answer, 160).replace(/\n/g, " ").trim();
+    let answer = cleanText(task.answer, 2000).trim();
     if (kind === "date") answer = cleanDate(typeof task.answer === "string" ? task.answer.trim() : "");
     return { text, done: Boolean(task.done), answer };
   }
@@ -78,6 +78,7 @@
     return {
       id,
       title: cleanText(raw.title, 2000),
+      kind: raw.kind === "collection" ? "collection" : "project",
       description: cleanText(raw.description, 2000),
       color,
       status,
@@ -92,7 +93,7 @@
   function capitalItem(index) {
     return normalizeItem({
       id: CAPITAL_ID,
-      title: "Capital IT spend",
+      title: "IT cost and spend",
       description: "Heavy licensing, subscriptions, and IT labor, with a target to reduce the total.",
       color: COLORS[index % COLORS.length],
       status: "evaluate",
@@ -126,6 +127,38 @@
     { id: "white-label-offering", title: "White label offering", description: "" },
   ];
 
+  const MODULE_SEEDS = [
+    { id: "hard-candy-implementation", title: "Hard Candy implementation" },
+    { id: "best-rx-independence", title: "Independence from Best Rx" },
+    { id: CAPITAL_ID, title: "IT cost and spend" },
+    { id: "labor-model-packaging", title: "Labor model; packaging" },
+    {
+      id: "labor-model-compounding", title: "Labor model: compounding", kind: "collection",
+      description: "Collect observations about compounding labor, time, and output.",
+    },
+  ];
+  const COLLECTION_FIELDS = ["Observation date / period", "Product / formulation", "Batch size / units produced",
+    "Number of staff", "Total staff hours", "Setup time", "Compounding time", "Cleanup time",
+    "Rework / delays", "Notes and data sources"];
+
+  function prioritizeModules(items) {
+    const remaining = items.slice();
+    const first = MODULE_SEEDS.map((seed, index) => {
+      const found = remaining.findIndex((item) => item.id === seed.id ||
+        item.title.trim().toLowerCase() === seed.title.toLowerCase() ||
+        (seed.id === CAPITAL_ID && item.title.trim().toLowerCase() === "capital it spend"));
+      if (found !== -1) {
+        const [item] = remaining.splice(found, 1);
+        return { ...item, title: seed.title, kind: seed.kind || item.kind };
+      }
+      return normalizeItem({ ...seed, color: COLORS[index % COLORS.length],
+        tasks: seed.kind === "collection"
+          ? COLLECTION_FIELDS.map((text) => ({ text, answer: "", done: false }))
+          : seed.id === CAPITAL_ID ? [...reviewTasks(), ...spendTasks()] : reviewTasks() });
+    });
+    return [...first, ...remaining];
+  }
+
   function starterItems() {
     const items = STARTER_SEEDS.map((item, index) =>
       normalizeItem({
@@ -137,10 +170,11 @@
     );
     items.push(capitalItem(items.length));
     items.push(scaleItem(items.length));
-    return items;
+    return prioritizeModules(items);
   }
 
   function withReview(item) {
+    if (item.kind === "collection") return item;
     const have = new Set(item.tasks.map((task) => task.text.trim().toLowerCase()));
     const missing = reviewTasks().filter((task) => !have.has(task.text.toLowerCase()));
     return { ...item, tasks: [...missing, ...item.tasks] };
@@ -171,13 +205,13 @@
     let items = Array.isArray(saved) ? saved.map(normalizeItem).filter(Boolean) : [];
     if (version === STARTER_VERSION) return items;
     if (!items.length && (version == null || version === "")) items = starterItems();
-    const reviewDone = version === "2" || version === "3" || version === "4";
+    const reviewDone = version === "2" || version === "3" || version === "4" || version === "5";
     if (!reviewDone && items.length) items = items.map(withReview);
     if (version == null || version === "" || version === "1" || version === "2") items = ensureCapital(items);
     if (version == null || version === "" || version === "1" || version === "2" || version === "3") {
       items = ensureScale(items);
     }
-    return items;
+    return prioritizeModules(items);
   }
 
   function progressOf(item) {
@@ -190,7 +224,7 @@
 
   function nextThree(items) {
     return items
-      .filter((item) => item.status !== "completed")
+      .filter((item) => item.kind !== "collection" && item.status !== "completed")
       .slice(0, 3)
       .map((item) => ({
         id: item.id,
@@ -208,6 +242,7 @@
       items: items.map((item) => ({
         id: item.id,
         title: item.title,
+        kind: item.kind,
         description: item.description,
         color: item.color,
         status: item.status,
