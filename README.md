@@ -1,9 +1,11 @@
 # Pocket
 
-A phone-width work tracker. The list opens with the first cards. Add more as they come up.
+A phone-width work tracker. The list is ranked by hand. Drag a card, or use the arrows, to change that order.
 
-Add a task, name it, and move the phase: Evaluate, then Investigate feasibility, then Ready for review. The phase is where the item sits. Every card starts with the same review: cost savings, timing, effort, target delivery, and a regulatory check. The bar is the share of requirements done, from that review through implementation. Up, down, and the drag handle change the order. Edit a task to rename it, add requirements, or remove it.
+Each card has an owner, a next action, and a target date. The phase is separate from the checklist: Evaluate, Investigate feasibility, Ready for review, Completed, or Blocked. Completed cards leave Next 3. Blocked cards stay in rank order and are marked Blocked. Next 3 shows the next action for the first three cards that are not completed.
 
-What you add is saved in this browser. A browser that has not saved a list yet opens with these cards.
+Every card starts with the same review: cost savings, timing, effort, target delivery, and a regulatory check. Those five can hold a short answer. Target delivery is a date. The bar is the share of checklist lines that are checked. It is labeled Checklist complete, and it is not the same as finishing the initiative.
 
-`npm start` serves the page for hosting. It listens on `PORT`, or 8080.
+Export writes a backup file. Import checks the file, then asks before it replaces the list on this browser. Removing a card or a requirement can be undone until the next change. The list is saved in this browser only. If that save cannot be read, it is left in place and the page offers a backup download.
+
+`npm start` serves the page for hosting. It listens on `PORT`, or 8080. `npm test` runs the focused checks.
