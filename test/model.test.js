@@ -27,7 +27,7 @@ test("version 4 data keeps titles, checks, phase, and order", () => {
     statusNote: "",
     tasks: [{ text: "Timing", done: true }],
   };
-  const items = model.migrate([savedItem(), second], "4");
+  const items = model.migrate([savedItem(), second], "4").slice(5);
   assert.deepEqual(items.map((item) => item.id), ["keep", "second"]);
   assert.equal(items[0].title, "Compliance support");
   assert.equal(items[0].description, "Keep the note");
@@ -51,7 +51,7 @@ test("version 4 data keeps titles, checks, phase, and order", () => {
 test("a fresh browser gets the starter list once", () => {
   const items = model.migrate([], null);
   assert.equal(items.at(-1).title, "SCALE analysis");
-  assert.equal(items.length, 10);
+  assert.equal(items.length, 14);
   assert.ok(items[0].tasks.some((task) => task.text === "Regulatory check"));
 });
 
@@ -92,7 +92,7 @@ test("next 3 skips completed items and keeps rank order", () => {
 });
 
 test("export and import keep fields and order", () => {
-  const items = model.migrate([savedItem()], "4");
+  const items = [model.normalizeItem(savedItem())];
   items[0].owner = "Jordan Lee";
   items[0].nextAction = "Send the draft";
   items[0].targetDate = "2026-11-02";
@@ -140,4 +140,32 @@ test("import rejects a bad file and does not invent items", () => {
   assert.equal(model.parseImport(JSON.stringify({ pocket: "work-tracker", items: [] })).ok, false);
   assert.equal(model.parseImport(JSON.stringify({ pocket: "work-tracker", items: [null] })).ok, false);
   assert.equal(model.parseImport(JSON.stringify({ items: [{ id: "ok", title: "Kept", tasks: [] }] })).ok, true);
+});
+
+
+test("module migration preserves saved content and only prioritizes once", () => {
+  const original = savedItem();
+  const spend = { ...savedItem(), id: "capital-it-spend", title: "Capital IT spend" };
+  const items = model.migrate([original, spend], "5");
+  assert.deepEqual(items.slice(0, 5).map(item => item.title), [
+    "Hard Candy implementation", "Independence from Best Rx", "IT cost and spend",
+    "Labor model; packaging", "Labor model: compounding"
+  ]);
+  assert.equal(items[2].description, spend.description);
+  assert.equal(items[2].tasks[0].done, true);
+  assert.equal(items[5].id, original.id);
+  assert.equal(items[5].tasks[0].done, true);
+  const reordered = [items[4], ...items.slice(0, 4), items[5]];
+  assert.deepEqual(model.migrate(reordered, model.STARTER_VERSION), reordered);
+});
+
+test("data collection fields survive backup and are excluded from project priorities", () => {
+  const collection = model.migrate([], null).find(item => item.kind === "collection");
+  assert.ok(collection);
+  assert.equal(collection.tasks.length, 10);
+  collection.tasks[0].answer = "First shift\nSecond shift";
+  const parsed = model.parseImport(JSON.stringify(model.exportDocument([collection])));
+  assert.equal(parsed.items[0].kind, "collection");
+  assert.equal(parsed.items[0].tasks[0].answer, "First shift\nSecond shift");
+  assert.deepEqual(model.nextThree([collection]), []);
 });
