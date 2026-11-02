@@ -197,7 +197,7 @@ function showRecovery() {
     actions.append(actionButton("Download unreadable backup", "download-raw"));
     actions.append(actionButton("Start a fresh list", "start-fresh"));
   } else {
-    text.textContent = "This browser can't store the list. You can keep working here, then export a backup before you leave.";
+    text.textContent = "This browser can't store the list. You can keep working here until you leave this page.";
     actions.append(actionButton("Try saving again", "retry-save"));
   }
   recoveryEl.hidden = false;
@@ -407,9 +407,9 @@ function renderList() {
     : "";
   return `
     <div class="layout">
+    <button type="button" class="add-task" data-add-project>Add a project</button>
     <p class="intro">Drag a card, or use the arrows. This order is the priority.</p>
     <div id="list">${list}</div>
-    <button type="button" class="add-task" data-add-project>Add a project</button>
     ${archivedHtml}
     </div>
   `;
@@ -1574,7 +1574,7 @@ function addProject() {
     updatedAt: new Date().toISOString(),
   });
   const archived = state.items.filter((entry) => entry.archived);
-  state.items = [...activeItems(), item, ...archived];
+  state.items = [item, ...activeItems(), ...archived];
   closing = false;
   focusPanel = false;
   returnFocus = { source: "add" };
@@ -2610,14 +2610,6 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (pendingConfirm) return;
-    if (event.target.closest("[data-export]")) {
-      exportList();
-      return;
-    }
-    if (event.target.closest("[data-import]")) {
-      document.querySelector("#import-file").click();
-      return;
-    }
     if (event.target.closest("[data-download-raw]")) {
       downloadRaw();
       return;
@@ -3131,27 +3123,6 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("submit", (event) => {
   if (event.target.closest(".block-form")) saveBlockForm(event);
-});
-
-document.querySelector("#import-file").addEventListener("change", (event) => {
-  const file = event.target.files && event.target.files[0];
-  event.target.value = "";
-  if (!file) return;
-  if (file.size > 2_000_000) {
-    setStatus("That file is too large to import.", { error: true, sticky: true });
-    return;
-  }
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    const result = model.parseImport(String(reader.result || ""));
-    if (!result.ok) {
-      setStatus(result.error, { error: true, sticky: true });
-      return;
-    }
-    askImport(result);
-  });
-  reader.addEventListener("error", () => setStatus("That file could not be read.", { error: true, sticky: true }));
-  reader.readAsText(file);
 });
 
 let grabDrag = null;

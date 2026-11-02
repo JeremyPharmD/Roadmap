@@ -10,10 +10,10 @@ A deliverable can be Candidate, Committed, or Deferred. Choosing Committed while
 
 The list has one priority order. Every active project is in that list, and the arrows and drag handle are always available.
 
-Recommendations, deliverables, checklists, and the manual planning tables stay in the saved plan and in an export. The home screen does not show them. Numbers that are not entered stay blank. Unknown is not zero. Unlike units are not added together. A negative queue balance is spare capacity, and the projected remaining queue is zero. Thresholds are whatever you enter. A launch item marked Ready does not approve the launch. Playbooks with no exercise date are not described as tested.
+Recommendations, deliverables, checklists, and the manual planning tables stay in the saved plan. The home screen does not show them. Numbers that are not entered stay blank. Unknown is not zero. Unlike units are not added together. A negative queue balance is spare capacity, and the projected remaining queue is zero. Thresholds are whatever you enter. A launch item marked Ready does not approve the launch. Playbooks with no exercise date are not described as tested.
 
 Live system integrations and AI interpretation of notes are future work. This version does not log in, assign work, send notifications, upload files, or invent a status when data is missing.
 
-Export writes a backup. Import checks the file, then asks before it replaces the plan on this browser. Removing a project, checklist line, journal entry, reference, deliverable, cost row, or schedule block can be undone until the next change. If the saved plan cannot be read, it is left in place and the page offers a backup download.
+A new project is added at the top of the list. Removing a project, checklist line, journal entry, reference, deliverable, cost row, or schedule block can be undone until the next change. If the saved plan cannot be read, it is left in place and the page offers a backup download.
 
 `npm start` serves the page. It listens on `PORT`, or 8080. `npm test` runs the focused checks.
