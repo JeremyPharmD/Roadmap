@@ -443,8 +443,8 @@ function renderList() {
     : "";
   const desk = deskHtml();
   return `
-    <div class="board${desk ? " has-desk" : ""}">
-    <div class="board-main">
+    <div class="layout${desk ? " has-desk" : ""}">
+    <div class="layout-main">
     ${renderNext()}
     <div class="list-controls">
       <label class="stack-field">Category
