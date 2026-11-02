@@ -35,7 +35,7 @@ const sheetRoot = document.querySelector("#sheet-root");
 const confirmRoot = document.querySelector("#confirm-root");
 const statusEl = document.querySelector("#status");
 const recoveryEl = document.querySelector("#recovery");
-const desktopQuery = window.matchMedia("(min-width: 800px)");
+const desktopQuery = window.matchMedia("(min-width: 960px)");
 
 function escapeHtml(value) {
   return String(value)
@@ -386,7 +386,6 @@ function projectArticle(item, index, total) {
   return `
     <article class="${classes}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
       ${rowFace(item, index, total)}
-      ${open ? workspaceHtml(item) : ""}
     </article>
   `;
 }
@@ -405,7 +404,6 @@ function archivedArticle(item) {
         </button>
         <button type="button" class="restore" data-restore="${escapeHtml(item.id)}">Restore</button>
       </div>
-      ${open ? workspaceHtml(item) : ""}
     </article>
   `;
 }
@@ -443,7 +441,10 @@ function renderList() {
   const archivedHtml = archived.length
     ? `<section class="archived-list" aria-label="Archived projects"><h2>Archived</h2>${archived.map(archivedArticle).join("")}</section>`
     : "";
+  const desk = deskHtml();
   return `
+    <div class="board${desk ? " has-desk" : ""}">
+    <div class="board-main">
     ${renderNext()}
     <div class="list-controls">
       <label class="stack-field">Category
@@ -456,7 +457,17 @@ function renderList() {
     <div id="list">${list}</div>
     <button type="button" class="add-task" data-add-project>Add a project</button>
     ${archivedHtml}
+    </div>
+    ${desk}
+    </div>
   `;
+}
+
+function deskHtml() {
+  if (useSheet() || !state.openId) return "";
+  const item = itemById(state.openId);
+  if (!item) return "";
+  return `<aside class="desk">${workspaceHtml(item)}</aside>`;
 }
 
 function optionsHtml(pairs, selected) {
@@ -941,10 +952,15 @@ function deliverableCard(project, deliverable) {
       </p>
       ${line("outcome", "Outcome")}
       ${area("definitionOfDone", "Definition of done")}
-      ${line("baseline", "Baseline")}
-      ${line("targetResult", "Target result")}
-      ${line("actualResult", "Actual result")}
-      <label class="stack-field">Target date<input class="field" type="date" ${deliverableAttrs(deliverable, project, "targetDate")} value="${escapeHtml(deliverable.targetDate || "")}" /></label>
+      <div class="field-row cols-3">
+        ${line("baseline", "Baseline")}
+        ${line("targetResult", "Target result")}
+        ${line("actualResult", "Actual result")}
+      </div>
+      <div class="field-row cols-2">
+        <label class="stack-field">Target date<input class="field" type="date" ${deliverableAttrs(deliverable, project, "targetDate")} value="${escapeHtml(deliverable.targetDate || "")}" /></label>
+        ${line("lead", "Accountable lead, optional")}
+      </div>
       <label class="stack-field">Planning horizon
         <select class="field" ${deliverableAttrs(deliverable, project, "horizon")}>${optionsHtml(horizons, deliverable.horizon || "")}</select>
       </label>
@@ -958,7 +974,6 @@ function deliverableCard(project, deliverable) {
       <label class="stack-field">Delivery status
         <select class="field" ${deliverableAttrs(deliverable, project, "status")}>${optionsHtml(model.DELIVERY_STATUSES.map((entry) => [entry.id, entry.label]), deliverable.status)}</select>
       </label>
-      ${line("lead", "Accountable lead, optional")}
       ${area("dependencies", "Dependencies")}
       ${area("evidence", "Evidence or source links")}
       <h4>Capacity and readiness review</h4>
@@ -1331,12 +1346,14 @@ function workspaceHtml(item) {
         <label class="stack-field">Next step
           <input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep)}" />
         </label>
-        <label class="stack-field">Target date, optional
-          <input class="field" type="date" data-field="targetDate" value="${escapeHtml(item.targetDate)}" />
-        </label>
-        <label class="stack-field">Category
-          <select class="field" data-field="category">${optionsHtml([["", "Uncategorized"], ...model.CATEGORIES.map((entry) => [entry.id, entry.label])], item.category || "")}</select>
-        </label>
+        <div class="field-row cols-2">
+          <label class="stack-field">Target date, optional
+            <input class="field" type="date" data-field="targetDate" value="${escapeHtml(item.targetDate)}" />
+          </label>
+          <label class="stack-field">Category
+            <select class="field" data-field="category">${optionsHtml([["", "Uncategorized"], ...model.CATEGORIES.map((entry) => [entry.id, entry.label])], item.category || "")}</select>
+          </label>
+        </div>
       </section>
       ${checklistHtml(item)}
       ${recommendationsHtml(item)}
@@ -1527,11 +1544,11 @@ function renderSheet() {
 
 function render(options = {}) {
   const y = window.scrollY;
-  const panel = document.querySelector(".sheet-body, .workspace");
+  const panel = document.querySelector(".sheet-body, .desk");
   const panelTop = panel ? panel.scrollTop : 0;
   renderBoard();
   renderSheet();
-  const nextPanel = document.querySelector(".sheet-body, .workspace");
+  const nextPanel = document.querySelector(".sheet-body, .desk");
   if (nextPanel) nextPanel.scrollTop = panelTop;
   if (window.scrollY !== y) window.scrollTo(0, y);
   document.querySelectorAll("[data-view]").forEach((button) => {
@@ -1540,7 +1557,7 @@ function render(options = {}) {
   if (options.focus) document.querySelector(options.focus)?.focus({ preventScroll: true });
   if (options.reveal) {
     const target = document.querySelector(options.reveal);
-    const scroller = target?.closest(".sheet-body, .workspace");
+    const scroller = target?.closest(".sheet-body, .desk");
     if (target && scroller) {
       const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
       scroller.scrollTop = Math.max(0, top - 12);
