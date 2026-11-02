@@ -1239,26 +1239,27 @@ textarea.field { min-height: 88px; resize: vertical; }
 @media (min-width: 960px) {
   .wrap { width: min(1120px, calc(100% - 48px)); }
 
-  .board:not(.has-desk) {
-    width: min(460px, 100%);
+  .layout:not(.has-desk) {
+    width: min(640px, 100%);
     margin: 0 auto;
   }
 
-  .board.has-desk {
+  .layout.has-desk {
     display: grid;
-    grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+    grid-template-columns: 420px minmax(0, 1fr);
     gap: 20px;
     align-items: start;
   }
 
-  .board-main { min-width: 0; }
+  .layout-main { min-width: 0; }
 
-  .board-main .category,
-  .board-main .list-controls { margin-left: 0; margin-right: 0; }
+  .layout-main .category,
+  .layout-main .list-controls { margin-left: 0; margin-right: 0; }
 
   .desk {
     position: sticky;
     top: 16px;
+    min-width: 0;
     max-height: calc(100vh - 32px);
     max-height: calc(100dvh - 32px);
     overflow: auto;
