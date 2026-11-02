@@ -172,6 +172,7 @@ body.sheet-open { overflow: hidden; }
 .tools {
   display: flex;
   gap: 8px;
+  margin-left: auto;
   padding: 0;
 }
 
@@ -276,7 +277,7 @@ main {
 .row-face {
   display: grid;
   grid-template-columns: 44px 36px minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   gap: 6px;
 }
 
@@ -399,6 +400,16 @@ main {
   border-right: 2px solid var(--muted);
   border-bottom: 2px solid var(--muted);
   transform: rotate(-45deg);
+}
+
+.row.is-open .chevron {
+  margin-top: 4px;
+  transform: rotate(45deg);
+}
+
+.row.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .meta {
@@ -1237,62 +1248,12 @@ textarea.field { min-height: 88px; resize: vertical; }
 .field-row { display: block; }
 
 @media (min-width: 960px) {
-  .wrap { width: min(1120px, calc(100% - 48px)); }
-
-  .layout:not(.has-desk) {
-    width: min(640px, 100%);
-    margin: 0 auto;
-  }
-
-  .layout.has-desk {
-    display: grid;
-    grid-template-columns: 420px minmax(0, 1fr);
-    gap: 20px;
-    align-items: start;
-  }
-
-  .layout-main { min-width: 0; }
-
-  .layout-main .category,
-  .layout-main .list-controls { margin-left: 0; margin-right: 0; }
-
-  .desk {
-    position: sticky;
-    top: 16px;
-    min-width: 0;
-    max-height: calc(100vh - 32px);
-    max-height: calc(100dvh - 32px);
-    overflow: auto;
-    padding: 4px 18px 24px;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-  }
-
-  .desk .workspace {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-  }
-
-  .row.is-open {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
-  }
+  .wrap { width: min(680px, calc(100% - 48px)); }
 
   .roadmap {
-    width: min(760px, 100%);
+    width: min(680px, 100%);
     margin: 0 auto;
   }
-
-  .desk .field-row {
-    display: grid;
-    gap: 0 16px;
-    align-items: start;
-  }
-
-  .desk .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
-  .desk .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
 }
 
 .list-controls {

@@ -338,39 +338,27 @@ function categoryOf(item) {
 }
 
 function canReorder() {
-  return state.view === "projects" && state.rankMode && !state.categoryFilter;
+  return state.view === "projects";
 }
 
 function rowFace(item, index, total) {
   const title = item.title || "New project";
-  const summary = item.summary || "No summary yet";
   const expanded = state.openId === item.id;
-  const reorder = canReorder();
-  const category = categoryOf(item);
-  const handle = reorder
-    ? `<button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>`
-    : `<span class="handle is-locked" aria-hidden="true"><span class="grip"></span></span>`;
   return `
     <div class="row-face">
-      ${handle}
+      <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
       <span class="rank">${index + 1}</span>
       <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
         <span class="title-line">
           <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
           <span class="chevron" aria-hidden="true"></span>
         </span>
-        ${category ? `<span class="category-line">${escapeHtml(category.label)}</span>` : ""}
-        <span class="blurb${item.summary ? "" : " is-placeholder"}">${escapeHtml(summary)}</span>
-        <span class="stage-line">Stage: ${escapeHtml(phaseOf(item.stage).short)}</span>
-        <span class="next-step">Next step: ${escapeHtml(item.nextStep || "—")}</span>
-        <span class="updated">${escapeHtml(updatedLabel(item))}</span>
-        ${meterHtml(item)}
       </button>
       <span class="nudges">
-        <button type="button" class="nudge" data-move="up" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} up" ${!reorder || index === 0 ? "disabled" : ""}>
+        <button type="button" class="nudge" data-move="up" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} up" ${index === 0 ? "disabled" : ""}>
           <span class="arrow arrow-up" aria-hidden="true"></span>
         </button>
-        <button type="button" class="nudge" data-move="down" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} down" ${!reorder || index === total - 1 ? "disabled" : ""}>
+        <button type="button" class="nudge" data-move="down" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} down" ${index === total - 1 ? "disabled" : ""}>
           <span class="arrow arrow-down" aria-hidden="true"></span>
         </button>
       </span>
@@ -386,6 +374,7 @@ function projectArticle(item, index, total) {
   return `
     <article class="${classes}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
       ${rowFace(item, index, total)}
+      ${open ? workspaceHtml(item) : ""}
     </article>
   `;
 }
@@ -396,14 +385,15 @@ function archivedArticle(item) {
   return `
     <article class="row is-archived${open ? " is-open" : ""}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
       <div class="row-face archived-face">
-        <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${item.id === state.openId ? "true" : "false"}">
-          <span class="title">${escapeHtml(title)}</span>
-          <span class="blurb${item.summary ? "" : " is-placeholder"}">${escapeHtml(item.summary || "No summary yet")}</span>
-          <span class="stage-line">Stage: ${escapeHtml(phaseOf(item.stage).short)}</span>
-          <span class="updated">${escapeHtml(updatedLabel(item))}</span>
+        <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${open ? "true" : "false"}">
+          <span class="title-line">
+            <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
+            <span class="chevron" aria-hidden="true"></span>
+          </span>
         </button>
         <button type="button" class="restore" data-restore="${escapeHtml(item.id)}">Restore</button>
       </div>
+      ${open ? workspaceHtml(item) : ""}
     </article>
   `;
 }
@@ -411,63 +401,18 @@ function archivedArticle(item) {
 function renderList() {
   const active = activeItems();
   const archived = state.items.filter((item) => item.archived);
-  const visible = state.categoryFilter ? active.filter((item) => item.category === state.categoryFilter) : active;
-  const rowsFor = (items) => items.map((item) => projectArticle(item, active.indexOf(item), active.length)).join("");
-  const filterOptions = [["", "All categories"], ...model.CATEGORIES.map((entry) => [entry.id, entry.label])];
-  const grouped = model.CATEGORIES.map((category) => {
-    if (state.categoryFilter && state.categoryFilter !== category.id) return "";
-    const items = visible.filter((item) => item.category === category.id);
-    const collapsed = state.collapsedCategories.has(category.id);
-    return `
-      <section class="category">
-        <button type="button" class="category-toggle" data-toggle-category="${escapeHtml(category.id)}" aria-expanded="${collapsed ? "false" : "true"}">
-          <span>${escapeHtml(category.label)}</span>
-          <span class="hint">${items.length}</span>
-        </button>
-        ${collapsed ? "" : `<div class="category-list">${rowsFor(items) || `<p class="hint">No projects in this category.</p>`}</div>`}
-      </section>
-    `;
-  }).join("");
-  const uncategorized = visible.filter((item) => !categoryOf(item));
-  const extra = !state.rankMode && uncategorized.length
-    ? `<section class="category"><h2 class="category-toggle">Uncategorized</h2><div class="category-list">${rowsFor(uncategorized)}</div></section>`
-    : "";
-  const list = state.rankMode
-    ? rowsFor(visible)
-    : `${grouped}${extra}`;
-  const note = canReorder()
-    ? "The order is the priority. Drag a project, or use the arrows. This is the one global order."
-    : "Categories group the same priority list. Reordering stays off while the list is grouped or filtered, so a hidden project cannot land in an ambiguous slot.";
+  const list = active.map((item, index) => projectArticle(item, index, active.length)).join("");
   const archivedHtml = archived.length
     ? `<section class="archived-list" aria-label="Archived projects"><h2>Archived</h2>${archived.map(archivedArticle).join("")}</section>`
     : "";
-  const desk = deskHtml();
   return `
-    <div class="layout${desk ? " has-desk" : ""}">
-    <div class="layout-main">
-    ${renderNext()}
-    <div class="list-controls">
-      <label class="stack-field">Category
-        <select class="field" data-category-filter>${optionsHtml(filterOptions, state.categoryFilter)}</select>
-      </label>
-      <button type="button" data-rank-mode aria-pressed="${state.rankMode ? "true" : "false"}">${state.rankMode ? "Show categories" : "Change priority order"}</button>
-    </div>
-    <p class="intro">${escapeHtml(note)} Checklist complete counts checklist items only. Open a project for its tables.</p>
-    <p class="hint">Live system integrations and AI interpretation of notes are future work. This version is a manual planning tool.</p>
+    <div class="layout">
+    <p class="intro">Drag a card, or use the arrows. This order is the priority.</p>
     <div id="list">${list}</div>
     <button type="button" class="add-task" data-add-project>Add a project</button>
     ${archivedHtml}
     </div>
-    ${desk}
-    </div>
   `;
-}
-
-function deskHtml() {
-  if (useSheet() || !state.openId) return "";
-  const item = itemById(state.openId);
-  if (!item) return "";
-  return `<aside class="desk">${workspaceHtml(item)}</aside>`;
 }
 
 function optionsHtml(pairs, selected) {
@@ -801,7 +746,7 @@ function journalHtml(item) {
             <textarea class="field" data-edit-journal-body="${escapeHtml(entry.id)}">${escapeHtml(entry.body)}</textarea>
           </label>
           <div class="inline-actions">
-            <button type="button" data-save-journal="${escapeHtml(entry.id)}">Save entry</button>
+            <button type="button" data-save-journal="${escapeHtml(entry.id)}">Save update</button>
             <button type="button" data-cancel-journal>Cancel</button>
           </div>
         `
@@ -809,9 +754,8 @@ function journalHtml(item) {
           <p class="hint"${open ? " hidden" : ""}>${escapeHtml(preview(entry))}</p>
           <p class="entry-body"${open ? "" : " hidden"}>${escapeHtml(entry.body)}</p>
           <div class="entry-actions"${open ? "" : " hidden"}>
-            <button type="button" data-edit-journal="${escapeHtml(entry.id)}">Edit</button>
+            <button type="button" data-edit-journal="${escapeHtml(entry.id)}">Edit update</button>
             <button type="button" class="remove" data-delete-journal="${escapeHtml(entry.id)}">Delete</button>
-            <button type="button" data-check-from-journal="${escapeHtml(entry.id)}">Create checklist item from this entry</button>
           </div>
         `;
       return `
@@ -828,22 +772,24 @@ function journalHtml(item) {
     })
     .join("");
   return `
+    <section class="history">
+      <h3>History</h3>
+      ${list || `<p class="hint">No updates yet.</p>`}
+    </section>
     <section>
-      <h3>Journal</h3>
+      <h3>Add update</h3>
       <div class="draft">
-        <h4>Add journal entry</h4>
         <label class="stack-field">Date and time
           <input class="field" type="datetime-local" data-journal-when value="${escapeHtml(state.journalComposer.when || toLocalInput())}" />
         </label>
         <label class="stack-field">Title, optional
           <input class="field" type="text" maxlength="200" data-journal-title value="${escapeHtml(state.journalComposer.title)}" />
         </label>
-        <label class="stack-field">Entry
+        <label class="stack-field">Update
           <textarea class="field" maxlength="8000" data-journal-body>${escapeHtml(state.journalComposer.body)}</textarea>
         </label>
-        <button type="button" class="add-line" data-add-journal>Add journal entry</button>
+        <button type="button" class="add-line" data-add-journal>Add update</button>
       </div>
-      ${list || `<p class="hint">No journal entries yet.</p>`}
     </section>
   `;
 }
@@ -1310,35 +1256,23 @@ function toolsHtml(item) {
 }
 
 function workspaceHtml(item) {
-  const rank = item.archived
-    ? "Archived"
-    : `Priority ${activeItems().findIndex((entry) => entry.id === item.id) + 1}`;
   const phases = model.PHASES.map(
     (phase) => `<button type="button" data-stage="${phase.id}" aria-pressed="${item.stage === phase.id ? "true" : "false"}">${escapeHtml(phase.label)}</button>`,
   ).join("");
+  const titleClass = useSheet() ? "" : " visually-hidden";
+  const close = useSheet() ? "" : `<div class="inline-actions"><button type="button" data-close>Close</button></div>`;
   return `
     <div class="workspace" id="workspace" tabindex="-1" role="region" aria-labelledby="workspace-title">
-      <div class="inline-actions">
-        <button type="button" data-close>Close project</button>
-        <span class="hint">${escapeHtml(rank)}</span>
-      </div>
-      <h2 id="workspace-title">${escapeHtml(item.title || "New project")}</h2>
-      <label class="stack-field">Project name
-        <textarea class="field title-input" rows="2" data-field="title" aria-label="Project name">${escapeHtml(item.title)}</textarea>
-      </label>
-      <label class="stack-field">Short summary
-        <textarea class="field" rows="2" data-field="summary">${escapeHtml(item.summary)}</textarea>
-      </label>
+      ${close}
+      <h2 id="workspace-title" class="${titleClass.trim()}">${escapeHtml(item.title || "New project")}</h2>
+      ${journalHtml(item)}
       <section>
-        <h3>Project brief</h3>
-        <label class="stack-field">Purpose
-          <textarea class="field" data-field="purpose">${escapeHtml(item.brief.purpose)}</textarea>
+        <h3>Edit</h3>
+        <label class="stack-field">Project name
+          <textarea class="field title-input" rows="2" data-field="title" aria-label="Project name">${escapeHtml(item.title)}</textarea>
         </label>
-        <label class="stack-field">Scope
-          <textarea class="field" data-field="scope">${escapeHtml(item.brief.scope)}</textarea>
-        </label>
-        <label class="stack-field">Desired outcome
-          <textarea class="field" data-field="outcome">${escapeHtml(item.brief.outcome)}</textarea>
+        <label class="stack-field">Short summary
+          <textarea class="field" rows="2" data-field="summary">${escapeHtml(item.summary)}</textarea>
         </label>
         <div class="phase-row">
           <div class="segments" role="group" aria-label="Current stage">${phases}</div>
@@ -1346,24 +1280,7 @@ function workspaceHtml(item) {
         <label class="stack-field">Next step
           <input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep)}" />
         </label>
-        <div class="field-row cols-2">
-          <label class="stack-field">Target date, optional
-            <input class="field" type="date" data-field="targetDate" value="${escapeHtml(item.targetDate)}" />
-          </label>
-          <label class="stack-field">Category
-            <select class="field" data-field="category">${optionsHtml([["", "Uncategorized"], ...model.CATEGORIES.map((entry) => [entry.id, entry.label])], item.category || "")}</select>
-          </label>
-        </div>
       </section>
-      ${checklistHtml(item)}
-      ${recommendationsHtml(item)}
-      ${toolsHtml(item)}
-      ${journalHtml(item)}
-      ${materialsHtml(item)}
-      ${relatedHtml(item)}
-      ${deliverablesHtml(item)}
-      ${budgetHtml(item)}
-      ${scheduleHtml(item)}
       <div class="project-actions">
         <button type="button" data-duplicate>Duplicate</button>
         ${item.archived ? `<button type="button" class="restore" data-restore="${escapeHtml(item.id)}">Restore</button>` : `<button type="button" data-archive>Archive</button>`}
@@ -1561,6 +1478,8 @@ function render(options = {}) {
     if (target && scroller) {
       const top = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
       scroller.scrollTop = Math.max(0, top - 12);
+    } else if (target) {
+      target.scrollIntoView({ block: "nearest" });
     }
   }
   if (!focusPanel) return;
@@ -1975,7 +1894,7 @@ function addJournal() {
   const title = state.journalComposer.title.trim();
   const body = state.journalComposer.body;
   if (!title && !body.trim()) {
-    setStatus("Write a title or some text before adding the entry.", { error: true, sticky: true });
+    setStatus("Write a title or some text before adding the update.", { error: true, sticky: true });
     return;
   }
   const createdAt = fromLocalInput(state.journalComposer.when);
@@ -2027,7 +1946,7 @@ function deleteJournal(id) {
   touch(item);
   commit();
   render();
-  setStatus("Removed a journal entry.", { undo: true });
+  setStatus("Removed an update.", { undo: true });
 }
 
 function draftFromJournal(id) {
@@ -2589,6 +2508,14 @@ document.addEventListener("pointerdown", (event) => {
   if (!handle || pendingConfirm || handle.closest(".workspace") || !canReorder()) return;
   if (state.openId && useSheet()) return;
   event.preventDefault();
+  if (state.openId && !useSheet()) {
+    state.openId = null;
+    for (const openRow of document.querySelectorAll(".row.is-open")) {
+      openRow.classList.remove("is-open");
+      openRow.querySelector(".workspace")?.remove();
+      openRow.querySelector(".open")?.setAttribute("aria-expanded", "false");
+    }
+  }
   const row = handle.closest(".row");
   drag = { row, pointerId: event.pointerId, startY: event.clientY, compensation: 0 };
   row.classList.add("is-dragging");
