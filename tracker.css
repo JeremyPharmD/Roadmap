@@ -1802,7 +1802,7 @@ textarea.field { min-height: 88px; resize: vertical; }
 @media (max-width: 640px) {
   .page-head { flex-wrap: wrap; }
   .page-head .btn { width: 100%; }
-  .work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .work-name { max-width: 16ch; }
   .card-top { flex-wrap: wrap; }
   .panel-head { flex-wrap: wrap; }
   .panel-tools { width: 100%; justify-content: flex-end; }
@@ -1864,10 +1864,11 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px 10px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
+  gap: 8px 14px;
 }
 
 .work-plus {
@@ -1883,9 +1884,11 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-check {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: 0 1 auto;
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -1898,9 +1901,10 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-name {
-  flex: 1;
+  field-sizing: content;
   width: auto;
-  min-width: 0;
+  min-width: 6ch;
+  max-width: 22ch;
   margin: 0;
   padding: 2px 0;
   border: 0;
@@ -1924,7 +1928,11 @@ textarea.field { min-height: 88px; resize: vertical; }
   color: var(--muted);
   font-size: 14px;
   line-height: 1;
+  opacity: 0;
 }
+
+.work-check:hover .work-x,
+.work-check:focus-within .work-x { opacity: 1; }
 
 .meter-line {
   display: flex;
