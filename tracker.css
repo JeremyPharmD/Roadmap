@@ -1,15 +1,14 @@
 :root {
   color-scheme: light;
-  --paper: #f3e0cc;
-  --card: #fff6ec;
-  --ink: #3c241c;
-  --rock: #5a2c22;
-  --muted: #8a6552;
-  --accent: #c24b2a;
-  --line: #edd4be;
-  --cream: #fff6ec;
-  --error: #9c3428;
-  --error-tint: #f8d9d0;
+  --paper: #ede6da;
+  --card: #f7f1e6;
+  --ink: #2a2420;
+  --muted: #6b5e52;
+  --accent: #b54a2a;
+  --line: #e4d8c8;
+  --cream: #f7f1e6;
+  --error: #8a3328;
+  --error-tint: #f6d6cf;
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
 }
 
@@ -48,7 +47,7 @@ body.sheet-open { overflow: hidden; }
   align-items: center;
   gap: 12px;
   padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
-  background: var(--rock);
+  background: var(--ink);
   color: var(--cream);
 }
 
@@ -290,14 +289,14 @@ main {
 .row.is-settling {
   position: relative;
   z-index: 1;
-  box-shadow: 0 8px 22px rgba(74, 36, 28, 0.12);
+  box-shadow: 0 8px 22px rgba(42, 36, 32, 0.12);
 }
 
 .row.is-dragging {
   position: relative;
   z-index: 2;
   transition: none;
-  box-shadow: 0 14px 32px rgba(74, 36, 28, 0.18);
+  box-shadow: 0 14px 32px rgba(42, 36, 32, 0.18);
 }
 
 .row.is-completed .title { color: var(--muted); }
@@ -541,7 +540,7 @@ main {
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(74, 36, 28, 0.45);
+  background: rgba(42, 36, 32, 0.4);
   opacity: 0;
   transition: opacity 200ms ease;
 }
@@ -551,7 +550,7 @@ main {
 .backdrop.is-in { opacity: 1; }
 
 .sheet {
-  --accent: #c24b2a;
+  --accent: #b54a2a;
   position: fixed;
   z-index: 3;
   left: 50%;
@@ -593,7 +592,7 @@ main {
   height: 4px;
   margin: 0 auto;
   border-radius: 99px;
-  background: #e0c7b0;
+  background: #cbbba8;
 }
 
 .close {
@@ -648,7 +647,7 @@ main {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff9f3;
+  background: #fffaf3;
   font-weight: 700;
 }
 
@@ -1229,7 +1228,7 @@ textarea.field { min-height: 88px; resize: vertical; }
   line-height: 1.2;
 }
 
-.block.is-dragging { z-index: 2; box-shadow: 0 8px 18px rgba(74, 36, 28, 0.18); }
+.block.is-dragging { z-index: 2; box-shadow: 0 8px 18px rgba(42, 36, 32, 0.18); }
 
 .block-move {
   flex: 1;
