@@ -172,6 +172,7 @@ body.sheet-open { overflow: hidden; }
 .tools {
   display: flex;
   gap: 8px;
+  margin-left: auto;
   padding: 0;
 }
 
@@ -276,7 +277,7 @@ main {
 .row-face {
   display: grid;
   grid-template-columns: 44px 36px minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   gap: 6px;
 }
 
@@ -382,7 +383,7 @@ main {
 .add-task {
   width: 100%;
   min-height: 48px;
-  margin-top: 12px;
+  margin: 0 0 12px;
   border: 1px dashed color-mix(in srgb, var(--ink) 28%, var(--line));
   border-radius: 16px;
   background: transparent;
@@ -399,6 +400,16 @@ main {
   border-right: 2px solid var(--muted);
   border-bottom: 2px solid var(--muted);
   transform: rotate(-45deg);
+}
+
+.row.is-open .chevron {
+  margin-top: 4px;
+  transform: rotate(45deg);
+}
+
+.row.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .meta {
@@ -1234,8 +1245,15 @@ textarea.field { min-height: 88px; resize: vertical; }
   border: 0;
 }
 
-@media (min-width: 800px) {
-  .wrap { width: min(960px, 100%); }
+.field-row { display: block; }
+
+@media (min-width: 960px) {
+  .wrap { width: min(680px, calc(100% - 48px)); }
+
+  .roadmap {
+    width: min(680px, 100%);
+    margin: 0 auto;
+  }
 }
 
 .list-controls {
