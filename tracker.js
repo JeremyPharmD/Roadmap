@@ -340,18 +340,22 @@ function canReorder() {
   return state.view === "projects";
 }
 
+function sizeLabel(item) {
+  return model.SIZES.find((entry) => entry.id === item.size)?.label || "";
+}
+
 function rowFace(item, index) {
   const title = item.title || "New project";
   const expanded = state.openId === item.id;
-  const sizes = [["", "Size"], ...model.SIZES.map((entry) => [entry.id, entry.label])];
+  const label = sizeLabel(item);
   return `
     <div class="row-face">
       <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
       <span class="rank">${index + 1}</span>
       <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
         <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
+        <span class="size-label${label ? "" : " is-unset"}">${escapeHtml(label || "—")}</span>
       </button>
-      <select class="field project-size" data-project-size="${escapeHtml(item.id)}" aria-label="Size of ${escapeHtml(title)}">${optionsHtml(sizes, item.size || "")}</select>
       ${meterHtml(item)}
     </div>
   `;
@@ -724,61 +728,28 @@ function journalHtml(item) {
   const entries = item.journal.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const list = entries
     .map((entry) => {
-      const open = state.expandedJournal.has(entry.id) || state.editingJournalId === entry.id;
-      const edited = journalEdited(entry) ? `<span class="edited">Edited</span>` : "";
-      const body = state.editingJournalId === entry.id
-        ? `
-          <label class="stack-field">Title
-            <input class="field" data-edit-journal-title="${escapeHtml(entry.id)}" value="${escapeHtml(entry.title)}" />
-          </label>
-          <label class="stack-field">Entry
-            <textarea class="field" data-edit-journal-body="${escapeHtml(entry.id)}">${escapeHtml(entry.body)}</textarea>
-          </label>
-          <div class="inline-actions">
-            <button type="button" data-save-journal="${escapeHtml(entry.id)}">Save update</button>
-            <button type="button" data-cancel-journal>Cancel</button>
-          </div>
-        `
-        : `
-          <p class="hint"${open ? " hidden" : ""}>${escapeHtml(preview(entry))}</p>
-          <p class="entry-body"${open ? "" : " hidden"}>${escapeHtml(entry.body)}</p>
-          <div class="entry-actions"${open ? "" : " hidden"}>
-            <button type="button" data-edit-journal="${escapeHtml(entry.id)}">Edit update</button>
-            <button type="button" class="remove" data-delete-journal="${escapeHtml(entry.id)}">Delete</button>
-          </div>
-        `;
+      const text = [entry.title, entry.body].map((part) => String(part || "").trim()).filter(Boolean).join("\n");
       return `
         <article class="entry" data-journal-id="${escapeHtml(entry.id)}">
           <div class="entry-meta">
             <time datetime="${escapeHtml(entry.createdAt)}">${escapeHtml(formatStamp(entry.createdAt))}</time>
-            ${edited}
-            <button type="button" class="text-btn" data-toggle-journal="${escapeHtml(entry.id)}" aria-expanded="${open ? "true" : "false"}">${open ? "Hide entry" : "Show entry"}</button>
+            <button type="button" class="remove" data-delete-journal="${escapeHtml(entry.id)}">Delete</button>
           </div>
-          <h4>${escapeHtml(entry.title || "Untitled")}</h4>
-          ${body}
+          <p class="entry-body">${escapeHtml(text || "Update")}</p>
         </article>
       `;
     })
     .join("");
   return `
-    <section class="history">
-      <h3>History</h3>
-      ${list || `<p class="hint">No updates yet.</p>`}
-    </section>
-    <section>
-      <h3>Add update</h3>
+    <section class="updates">
+      <h3>Updates</h3>
       <div class="draft">
-        <label class="stack-field">Date and time
-          <input class="field" type="datetime-local" data-journal-when value="${escapeHtml(state.journalComposer.when || toLocalInput())}" />
-        </label>
-        <label class="stack-field">Title, optional
-          <input class="field" type="text" maxlength="200" data-journal-title value="${escapeHtml(state.journalComposer.title)}" />
-        </label>
         <label class="stack-field">Update
           <textarea class="field" maxlength="8000" data-journal-body>${escapeHtml(state.journalComposer.body)}</textarea>
         </label>
         <button type="button" class="add-line" data-add-journal>Add update</button>
       </div>
+      ${list || `<p class="hint">No updates yet.</p>`}
     </section>
   `;
 }
@@ -1258,46 +1229,37 @@ function tasksHtml(item) {
     .join("");
   return `
     <section class="tasks">
-      <h3>Tasks</h3>
-      ${rows || `<p class="hint">No tasks yet. Add one and the bar above fills as you check them off.</p>`}
-      <button type="button" class="add-line" data-add-check>Add a task</button>
+      <h3>Work items</h3>
+      <p class="hint">The card percentage is checked work items divided by all work items.</p>
+      ${meterHtml(item)}
+      ${rows || `<p class="hint">No work items yet.</p>`}
+      <button type="button" class="add-line" data-add-check>Add a work item</button>
+    </section>
+  `;
+}
+
+function sizePicker(item) {
+  const buttons = model.SIZES.map(
+    (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}">${escapeHtml(entry.label)}</button>`,
+  ).join("");
+  return `
+    <section class="size-section">
+      <h3>Size</h3>
+      <div class="size-pick" role="group" aria-label="Project size">${buttons}</div>
     </section>
   `;
 }
 
 function workspaceHtml(item) {
-  const phases = model.PHASES.map(
-    (phase) => `<button type="button" data-stage="${phase.id}" aria-pressed="${item.stage === phase.id ? "true" : "false"}">${escapeHtml(phase.label)}</button>`,
-  ).join("");
   const titleClass = useSheet() ? "" : " visually-hidden";
   const close = useSheet() ? "" : `<div class="inline-actions"><button type="button" data-close>Close</button></div>`;
   return `
     <div class="workspace" id="workspace" tabindex="-1" role="region" aria-labelledby="workspace-title">
       ${close}
       <h2 id="workspace-title" class="${titleClass.trim()}">${escapeHtml(item.title || "New project")}</h2>
-      ${useSheet() ? meterHtml(item) : ""}
-      ${tasksHtml(item)}
+      ${sizePicker(item)}
       ${journalHtml(item)}
-      <section>
-        <h3>Edit</h3>
-        <label class="stack-field">Project name
-          <textarea class="field title-input" rows="2" data-field="title" aria-label="Project name">${escapeHtml(item.title)}</textarea>
-        </label>
-        <label class="stack-field">Short summary
-          <textarea class="field" rows="2" data-field="summary">${escapeHtml(item.summary)}</textarea>
-        </label>
-        <div class="phase-row">
-          <div class="segments" role="group" aria-label="Current stage">${phases}</div>
-        </div>
-        <label class="stack-field">Next step
-          <input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep)}" />
-        </label>
-      </section>
-      <div class="project-actions">
-        <button type="button" data-duplicate>Duplicate</button>
-        ${item.archived ? `<button type="button" class="restore" data-restore="${escapeHtml(item.id)}">Restore</button>` : `<button type="button" data-archive>Archive</button>`}
-        <button type="button" class="remove-task" data-delete-project>Remove project</button>
-      </div>
+      ${tasksHtml(item)}
     </div>
   `;
 }
@@ -1897,7 +1859,7 @@ function removeCheck(id) {
   touch(item);
   commit();
   render();
-  setStatus("Removed a task.", { undo: true });
+  setStatus("Removed a work item.", { undo: true });
 }
 
 function addJournal() {
@@ -2889,6 +2851,16 @@ document.addEventListener("click", (event) => {
       deleteBlock(deleteBlockButton.dataset.deleteBlock);
       return;
     }
+    const chooseSize = event.target.closest("[data-choose-size]");
+    if (chooseSize) {
+      const sized = itemById(state.openId);
+      if (!sized) return;
+      sized.size = chooseSize.dataset.chooseSize;
+      touch(sized);
+      save();
+      render({ focus: `[data-choose-size="${CSS.escape(sized.size)}"]` });
+      return;
+    }
     const stage = event.target.closest("[data-stage]");
     if (stage) {
       const item = itemById(state.openId);
@@ -2922,14 +2894,6 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
-  if (event.target.dataset?.projectSize) {
-    const item = itemById(event.target.dataset.projectSize);
-    if (!item) return;
-    item.size = model.SIZES.some((entry) => entry.id === event.target.value) ? event.target.value : "";
-    touch(item);
-    save();
-    return;
-  }
   const item = state.openId ? itemById(state.openId) : null;
   try {
     const box = event.target.closest("[data-check-id]");

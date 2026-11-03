@@ -1,6 +1,6 @@
 # Pocket
 
-A strategy and initiative planner for one person, kept in this browser. The home screen is one ranked list of modules. Each card shows its rank and name on the same line, a size you choose (small, medium, large, extra large, or 2XL), and a progress bar with the tasks finished, the task total, and the percentage. Drag a card to change the order. Open a card to add tasks, check them off, read its history, add an update, or edit the name, summary, stage, and next step. Checking a task fills the bar. Checking a task does not change the project stage. The size is not calculated.
+A strategy and initiative planner for one person, kept in this browser. The home screen is one ranked list of modules. Each card shows its rank and name on the same line, the size you chose, and a progress bar. The percentage is checked work items divided by all work items. Open a card to set the size, add an update, read earlier updates, and check off work items. Drag a card to change the order.
 
 Projects, recommendations, and deliverables are separate records. A recommendation keeps the wording from the user-provided Scale Readiness & Operating System Diagnostic (Matt Cook, Scale That Works; fieldwork September 14 and October 19, 2026). The response and action plan are written separately. Those recommendations are planning inputs, not approved commitments. The diagnostic's proposed description of Epiq Plans is recorded as a proposal. Purpose, scope, minimum viable offering, and launch criteria stay an open question until someone fills them in.
 
