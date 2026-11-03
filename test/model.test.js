@@ -77,8 +77,10 @@ test("a fresh browser gets the twelve modules once", () => {
     "White label",
     "Private label",
   ]);
-  assert.equal(items[1].checklist[0].text, "Accounting verification");
-  assert.equal(items[1].checklist[0].done, false);
+  assert.equal(items[0].checklist[0].text, "Get Insights");
+  assert.equal(items[1].checklist[0].text, "Get Insights");
+  assert.equal(items[1].checklist[1].text, "Accounting verification");
+  assert.equal(items[1].checklist[1].done, false);
   assert.ok(items.every((item) => item.size === ""));
   assert.ok(items.every((item) => item.checklist.every((entry) => entry.done === false)));
 });
@@ -89,6 +91,7 @@ test("an emptied saved list stays empty", () => {
   assert.deepEqual(model.migrate([], "6"), []);
   assert.deepEqual(model.migrate([], "7"), []);
   assert.deepEqual(model.migrate([], "8"), []);
+  assert.deepEqual(model.migrate([], "9"), []);
 });
 
 test("version 8 does not recreate a deleted module, and version 7 becomes the module list once", () => {
@@ -97,7 +100,8 @@ test("version 8 does not recreate a deleted module, and version 7 becomes the mo
   assert.deepEqual(items.map((item) => item.id), ["mine"]);
   const replaced = model.migratePlan({ projects: [kept], recommendations: [], settings: { baselineDate: "2026-11-02" } }, "7");
   assert.equal(replaced.projects.length, 12);
-  assert.equal(replaced.projects[1].checklist[0].text, "Accounting verification");
+  assert.equal(replaced.projects[1].checklist[0].text, "Get Insights");
+  assert.equal(replaced.projects[1].checklist[1].text, "Accounting verification");
   assert.equal(replaced.settings.baselineDate, "2026-11-02");
   assert.equal(replaced.recommendations.length, 0);
   const plan = model.migratePlan({ projects: [kept], recommendations: [], settings: {} }, "8");
@@ -132,6 +136,28 @@ test("an existing IT plan is enriched in place and a deleted one stays deleted",
   assert.equal(names.includes("IT Systems Financial Plan"), false);
   assert.equal(names.includes("SCALE analysis"), false);
   assert.ok(names.includes("Independence from BestRx"));
+});
+
+test("version 8 projects gain Get Insights first, and version 9 does not add it again", () => {
+  const kept = model.normalizeItem({
+    id: "mine",
+    title: "Mine",
+    checklist: [{ id: "c1", text: "Already here", done: true, type: "action" }],
+  });
+  const once = model.migrate([kept], "8");
+  assert.equal(once[0].id, "mine");
+  assert.equal(once[0].checklist[0].text, "Get Insights");
+  assert.equal(once[0].checklist[0].done, false);
+  assert.equal(once[0].checklist[1].text, "Already here");
+  assert.equal(once[0].checklist[1].done, true);
+  const plan = model.migratePlan({ projects: [kept], recommendations: [], settings: {} }, "8");
+  assert.deepEqual(plan.projects.map((item) => item.id), ["mine"]);
+  assert.equal(plan.projects[0].checklist[0].text, "Get Insights");
+  const again = model.migrate(once, "9");
+  assert.equal(again[0].checklist.filter((entry) => entry.text === "Get Insights").length, 1);
+  const removed = model.normalizeItem({ ...once[0], checklist: once[0].checklist.slice(1) });
+  const left = model.migrate([removed], "9");
+  assert.equal(left[0].checklist.some((entry) => entry.text === "Get Insights"), false);
 });
 
 test("a project keeps its notes, size, and short description", () => {
@@ -393,8 +419,9 @@ test("horizons are not dated until a baseline exists, and commitment gaps stay v
 test("the modules start without a chosen size or finished tasks", () => {
   const plan = model.migratePlan([], null);
   const phaseOne = plan.projects.find((item) => item.id === "independence-vesta-rx-phase-one");
-  assert.equal(phaseOne.checklist.length, 1);
-  assert.equal(phaseOne.checklist[0].text, "Accounting verification");
+  assert.equal(phaseOne.checklist.length, 2);
+  assert.equal(phaseOne.checklist[0].text, "Get Insights");
+  assert.equal(phaseOne.checklist[1].text, "Accounting verification");
   assert.equal(phaseOne.checklist[0].done, false);
   assert.ok(plan.projects.every((item) => item.size === ""));
   assert.equal(plan.projects.filter((item) => item.title === "White label").length, 1);

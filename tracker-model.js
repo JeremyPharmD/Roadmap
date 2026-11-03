@@ -5,13 +5,13 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const STORAGE_KEY = "pocket-work-tracker";
   const STARTER_KEY = "pocket-work-tracker-starter";
-  const STARTER_VERSION = "8";
+  const STARTER_VERSION = "9";
   const SIZES = [
-    { id: "small", label: "Small" },
-    { id: "medium", label: "Medium" },
-    { id: "large", label: "Large" },
-    { id: "xl", label: "Extra large" },
-    { id: "2xl", label: "2XL" },
+    { id: "small", label: "Small", short: "S" },
+    { id: "medium", label: "Medium", short: "M" },
+    { id: "large", label: "Large", short: "L" },
+    { id: "xl", label: "Extra large", short: "XL" },
+    { id: "2xl", label: "2XL", short: "2XL" },
   ];
   const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
   const LEGACY_COLORS = {
@@ -611,6 +611,10 @@ journalId: cleanLine(raw.journalId, 80),
   }
 
   function projectSeed(seed, index) {
+    const checklist = Array.isArray(seed.checklist) ? seed.checklist.slice() : [];
+    if (!checklist.some((entry) => String(entry.text || "").trim().toLowerCase() === "get insights")) {
+      checklist.unshift(line("Get Insights", "action"));
+    }
     return normalizeItem({
       id: seed.id,
       title: seed.title,
@@ -619,7 +623,7 @@ journalId: cleanLine(raw.journalId, 80),
       stage: "evaluate",
       nextStep: seed.nextStep || "",
       brief: { purpose: seed.purpose, scope: seed.scope || "", outcome: seed.outcome || "" },
-      checklist: seed.checklist,
+      checklist,
       workstreams: seed.workstreams || [],
       materials: seed.materials || [],
       budget: seed.budget || null,
@@ -1145,9 +1149,16 @@ function missingSeed(items, seed) {
   return findSeedMatch(items, seed) < 0;
 }
 
+  function withInsights(item) {
+    if (item.checklist.some((entry) => sameText(entry.text, "Get Insights"))) return item;
+    const entry = normalizeCheck(line("Get Insights", "action"));
+    return { ...item, checklist: [entry, ...item.checklist] };
+  }
+
 function migrate(saved, version) {
   let items = Array.isArray(saved) ? saved.map(normalizeItem).filter(Boolean) : [];
-  if (version === "7" || version === STARTER_VERSION) return items;
+  if (version === STARTER_VERSION) return items;
+  if (version === "8" || version === "7") return items.map(withInsights);
   if ((version == null || version === "") && !items.length) return seedProjects();
   if (!items.length) return [];
   const reviewDone = version === "2" || version === "3" || version === "4" || version === "5" || version === "6";
@@ -1439,7 +1450,7 @@ function migrate(saved, version) {
     }
     let projects = migrate(incomingProjects, version);
     let recommendations = recommendationInput.map(normalizeRecommendation).filter(Boolean);
-    if (version !== STARTER_VERSION && projects.length) {
+    if (version !== "8" && version !== STARTER_VERSION && projects.length) {
       recommendations = mergeRecommendations(projects, recommendations);
       projects = bindRelated(projects);
     }

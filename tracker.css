@@ -1802,6 +1802,7 @@ textarea.field { min-height: 88px; resize: vertical; }
 @media (max-width: 640px) {
   .page-head { flex-wrap: wrap; }
   .page-head .btn { width: 100%; }
+  .work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card-top { flex-wrap: wrap; }
   .panel-head { flex-wrap: wrap; }
   .panel-tools { width: 100%; justify-content: flex-end; }
@@ -1857,41 +1858,95 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .work-frame {
   margin: 10px 0 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--paper) 55%, var(--card));
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
-.add-work {
-  display: flex;
-  margin-top: 8px;
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.work-plus {
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fffaf3;
-  overflow: hidden;
+  background: transparent;
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.add-work .field {
-  flex: 1;
+.work-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.work-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
   margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.work-name {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.add-work button {
-  border: 0;
-  border-left: 1px solid var(--line);
-  background: transparent;
-  padding: 0 12px;
-  color: var(--accent);
-  font-weight: 800;
+.work-check.is-done .work-name {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
+
+.work-x {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.meter-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.size-letter {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.bullet-note { white-space: pre-wrap; }
 
 .open .meter {
-  width: 100%;
-  margin-top: 4px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  margin-top: 0;
   grid-column: auto;
   grid-row: auto;
 }

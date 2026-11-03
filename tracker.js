@@ -353,10 +353,8 @@ function sizeLabel(item) {
   return model.SIZES.find((entry) => entry.id === item.size)?.label || "";
 }
 
-const EFFORT_SHORT = { small: "S", medium: "M", large: "L", xl: "XL", "2xl": "2XL" };
-
 function effortShort(item) {
-  return EFFORT_SHORT[item.size] || "";
+  return model.SIZES.find((entry) => entry.id === item.size)?.short || "";
 }
 
 function stageBadge(item) {
@@ -368,11 +366,16 @@ function progressHtml(item) {
   const steps = item.checklist.length;
   const done = item.checklist.filter((entry) => entry.done).length;
   const percent = steps ? model.progressOf(item).percent : 0;
+  const letter = effortShort(item);
+  const mark = letter ? `<span class="size-letter">${escapeHtml(letter)}</span>` : "";
   return `
-    <span class="meter" aria-label="${done} of ${steps} work items, ${percent} percent">
-      <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
-      <span class="frac">${done}/${steps}</span>
-      <span class="pct">${percent}%</span>
+    <span class="meter-line">
+      ${mark}
+      <span class="meter" aria-label="${done} of ${steps} work items, ${percent} percent">
+        <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
+        <span class="frac">${done}/${steps}</span>
+        <span class="pct">${percent}%</span>
+      </span>
     </span>
   `;
 }
@@ -399,8 +402,6 @@ function effortControl(item) {
 function rowFace(item, index) {
   const title = item.title || "New project";
   const expanded = state.openId === item.id;
-  const label = sizeLabel(item);
-  const size = label ? `<span class="size-label">${escapeHtml(label)}</span>` : "";
   return `
     <div class="row-face">
       <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
@@ -409,7 +410,6 @@ function rowFace(item, index) {
         <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
           <span class="title-row">
             <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-            ${size}
           </span>
           <span class="progress-slot">${progressHtml(item)}</span>
         </button>
@@ -1284,10 +1284,10 @@ function tasksHtml(item) {
   const rows = item.checklist
     .map(
       (entry) => `
-        <div class="task-row${entry.done ? " is-done" : ""}">
+        <div class="work-check${entry.done ? " is-done" : ""}">
           <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
-          <input class="field" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
-          <button type="button" class="remove" data-remove-check="${escapeHtml(entry.id)}">Remove</button>
+          <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
+          <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
         </div>
       `,
     )
@@ -1295,10 +1295,9 @@ function tasksHtml(item) {
   return `
     <section class="work-frame">
       <h3>Work items</h3>
-      ${rows}
-      <div class="add-work">
-        <input class="field" type="text" maxlength="2000" data-new-work placeholder="Add a work item" aria-label="Add a work item" />
-        <button type="button" data-add-check>Add</button>
+      <div class="work-grid">
+        <button type="button" class="work-plus" data-add-check aria-label="Add a work item">+</button>
+        ${rows}
       </div>
     </section>
   `;
@@ -1306,7 +1305,7 @@ function tasksHtml(item) {
 
 function sizePicker(item) {
   const buttons = model.SIZES.map(
-    (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}">${escapeHtml(entry.label)}</button>`,
+    (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}" aria-label="${escapeHtml(entry.label)}">${escapeHtml(entry.short)}</button>`,
   ).join("");
   return `
     <section class="size-section">
@@ -1441,7 +1440,7 @@ function statusUpdatesHtml(item) {
   return `
     <section class="updates">
       <h3>Updates</h3>
-      <textarea class="field" rows="2" maxlength="8000" data-journal-body placeholder="What changed" aria-label="Status update">${escapeHtml(state.journalComposer.body)}</textarea>
+      <textarea class="field bullet-note" rows="3" maxlength="8000" data-journal-body placeholder="• " aria-label="Status update">${escapeHtml(state.journalComposer.body || "• ")}</textarea>
       <button type="button" class="btn secondary" data-add-journal>Add update</button>
       ${list}
     </section>
@@ -1458,6 +1457,9 @@ function insideHtml(item) {
       ${sizePicker(item)}
       <label class="stack-field">Short description
         <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Short description">${escapeHtml(item.summary || "")}</textarea>
+      </label>
+      <label class="stack-field">Notes
+        <textarea class="field" rows="3" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
       </label>
       ${statusUpdatesHtml(item)}
       ${tasksHtml(item)}
@@ -1761,6 +1763,7 @@ function addProject() {
     summary: "",
     color: model.COLORS[state.items.length % model.COLORS.length],
     stage: "evaluate",
+    checklist: [{ text: "Get Insights", type: "action", done: false }],
     updatedAt: new Date().toISOString(),
   });
   const archived = state.items.filter((entry) => entry.archived);
@@ -2071,15 +2074,14 @@ function moveCheck(id, direction) {
 function addCheck() {
   const item = itemById(state.openId);
   if (!item) return;
-  const field = document.querySelector("[data-new-work]");
-  const text = field?.value.trim() || "";
-  if (!text) {
-    field?.focus();
+  const blank = item.checklist.find((entry) => !entry.text.trim());
+  if (blank) {
+    render({ focus: `[data-check-text="${CSS.escape(blank.id)}"]` });
     return;
   }
   const entry = {
     id: crypto.randomUUID(),
-    text: text.slice(0, 2000),
+    text: "",
     done: false,
     type: "action",
     due: "",
@@ -2091,7 +2093,15 @@ function addCheck() {
   state.checkFilter = state.checkFilter === "done" ? "all" : state.checkFilter;
   touch(item);
   save();
-  render({ focus: "[data-new-work]" });
+  render({ focus: `[data-check-text="${CSS.escape(entry.id)}"]` });
+}
+
+function updateText(value) {
+  return String(value || "")
+    .split("\n")
+    .map((line) => line.replace(/^[\s•]+/, "").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function removeCheck(id) {
@@ -2111,7 +2121,7 @@ function addJournal() {
   if (!item) return;
   const title = state.journalComposer.title.trim();
   const body = state.journalComposer.body;
-  if (!title && !body.trim()) {
+  if (!title && !updateText(body)) {
     setStatus("Write a title or some text before adding the update.", { error: true, sticky: true });
     return;
   }
@@ -3505,9 +3515,21 @@ document.addEventListener("keydown", (event) => {
       return;
     }
   }
-  if (event.key === "Enter" && event.target.dataset?.newWork != null) {
+  if (event.key === "Enter" && event.target.dataset?.checkText) {
     event.preventDefault();
     addCheck();
+    return;
+  }
+  if (event.key === "Enter" && !event.shiftKey && event.target.dataset?.journalBody != null) {
+    event.preventDefault();
+    const field = event.target;
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    const next = `${field.value.slice(0, start)}\n• ${field.value.slice(end)}`;
+    field.value = next;
+    const caret = start + 3;
+    field.selectionStart = field.selectionEnd = caret;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
     return;
   }
   if (event.key === "Enter" && event.target.dataset && event.target.dataset.field === "title") event.preventDefault();
