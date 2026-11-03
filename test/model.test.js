@@ -174,6 +174,21 @@ test("a project keeps its notes, size, and short description", () => {
   assert.equal(model.normalizeItem({ id: "plain", title: "Plain" }).notes, "");
 });
 
+test("a work item can be marked for review", () => {
+  const item = model.normalizeItem({
+    id: "review",
+    title: "Review me",
+    checklist: [
+      { id: "keep", text: "Get Insights", done: false, forReview: true },
+      { id: "plain", text: "Accounting verification", done: true },
+    ],
+  });
+  assert.equal(item.checklist[0].forReview, true);
+  assert.equal(item.checklist[0].done, false);
+  assert.equal(item.checklist[1].forReview, false);
+  assert.equal(model.progressOf(item).fraction, "1/2");
+});
+
 test("checklist percent counts checked lines only", () => {
   const item = model.normalizeItem({
     id: "a",
