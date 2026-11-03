@@ -60,24 +60,27 @@ test("version 4 data keeps user content and does not restore deleted starters", 
   assert.equal(items.filter((item) => item.title === "SCALE analysis").length, 0);
 });
 
-test("a fresh browser gets the original eight projects and the added workspaces once", () => {
+test("a fresh browser gets the twelve modules once", () => {
   const items = model.migrate([], null);
-  assert.equal(items.length, 16);
-  assert.deepEqual(items.slice(0, 8).map((item) => item.title), [
-    "IT Systems Financial Plan",
-    "Independence from BestRx",
-    "Labor Model & Scheduling",
-    "epiqscripts.com Revamp",
-    "Private Label Sites & Provider Network",
-    "Compliance support",
-    "AI agents for support",
-    "SCALE analysis",
+  assert.equal(items.length, 12);
+  assert.deepEqual(items.map((item) => item.title), [
+    "Compliance matrix",
+    "Independence from VESTA RX phase one",
+    "Patient profile, refill mechanism, and patient notes",
+    "Gum-based return plan",
+    "Peptide release plan",
+    "Labor project (Travis blocking and planning)",
+    "Branding and packaging progress",
+    "Stick pack machines",
+    "Independence phase two, all RXs",
+    "Epic Scripts home website",
+    "White label",
+    "Private label",
   ]);
-  assert.ok(items[0].checklist.every((entry) => entry.done === false));
-  assert.equal(items[0].budget.length, 7);
-  assert.ok(items[0].budget.every((row) => row.currentCost == null && row.proposedCost == null));
-  assert.equal(items[2].schedule.blocks.length, 0);
-  assert.equal(items.some((item) => item.title === "Best RX Quantity and Refill Resolution"), false);
+  assert.equal(items[1].checklist[0].text, "Accounting verification");
+  assert.equal(items[1].checklist[0].done, false);
+  assert.ok(items.every((item) => item.size === ""));
+  assert.ok(items.every((item) => item.checklist.every((entry) => entry.done === false)));
 });
 
 test("an emptied saved list stays empty", () => {
@@ -85,13 +88,19 @@ test("an emptied saved list stays empty", () => {
   assert.deepEqual(model.migrate([], "5"), []);
   assert.deepEqual(model.migrate([], "6"), []);
   assert.deepEqual(model.migrate([], "7"), []);
+  assert.deepEqual(model.migrate([], "8"), []);
 });
 
-test("version 7 does not recreate a deleted project or recommendation", () => {
+test("version 8 does not recreate a deleted module, and version 7 becomes the module list once", () => {
   const kept = model.normalizeItem({ id: "mine", title: "Mine", checklist: [] });
   const items = model.migrate([kept], "7");
   assert.deepEqual(items.map((item) => item.id), ["mine"]);
-  const plan = model.migratePlan({ projects: [kept], recommendations: [], settings: {} }, "7");
+  const replaced = model.migratePlan({ projects: [kept], recommendations: [], settings: { baselineDate: "2026-11-02" } }, "7");
+  assert.equal(replaced.projects.length, 12);
+  assert.equal(replaced.projects[1].checklist[0].text, "Accounting verification");
+  assert.equal(replaced.settings.baselineDate, "2026-11-02");
+  assert.equal(replaced.recommendations.length, 0);
+  const plan = model.migratePlan({ projects: [kept], recommendations: [], settings: {} }, "8");
   assert.deepEqual(plan.projects.map((item) => item.id), ["mine"]);
   assert.equal(plan.recommendations.length, 0);
 });
@@ -367,19 +376,13 @@ test("horizons are not dated until a baseline exists, and commitment gaps stay v
   assert.equal(money.amount, null);
 });
 
-test("new workspaces start blank instead of pretending the work is done", () => {
+test("the modules start without a chosen size or finished tasks", () => {
   const plan = model.migratePlan([], null);
-  const labor = plan.projects.find((item) => item.title === "Labor Model & Scheduling");
-  assert.ok(labor.checklist.some((entry) => entry.text.startsWith("Review overtime") && entry.horizon === "now" && entry.done === false));
-  assert.deepEqual(labor.tools.capacity, { rows: [], coverage: [] });
-  const scorecard = plan.projects.find((item) => item.id === "enterprise-priorities").tools.scorecard;
-  assert.ok(scorecard.every((row) => row.target === "" && row.actual === "" && row.status === "suggestion"));
-  const launch = plan.projects.find((item) => item.id === "client-launch-readiness").tools.launches[0];
-  assert.ok(launch.items.every((item) => item.status === "not-assessed" && item.evidence === "" && item.owner === ""));
-  const playbook = plan.projects.find((item) => item.id === "business-continuity").tools.playbooks[0];
-  assert.equal(playbook.trigger, "");
-  assert.equal(playbook.exercised, "");
-  const scale = plan.projects.find((item) => item.id === "scale-analysis");
-  assert.equal(scale.reviewHost, true);
-  assert.equal(scale.title, "SCALE analysis");
+  const phaseOne = plan.projects.find((item) => item.id === "independence-vesta-rx-phase-one");
+  assert.equal(phaseOne.checklist.length, 1);
+  assert.equal(phaseOne.checklist[0].text, "Accounting verification");
+  assert.equal(phaseOne.checklist[0].done, false);
+  assert.ok(plan.projects.every((item) => item.size === ""));
+  assert.equal(plan.projects.filter((item) => item.title === "White label").length, 1);
+  assert.equal(plan.projects.filter((item) => item.title === "Private label").length, 1);
 });
