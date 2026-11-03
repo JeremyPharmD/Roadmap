@@ -278,7 +278,7 @@ main {
   display: grid;
   grid-template-columns: 44px 36px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px 8px;
 }
 
 .archived-face {
@@ -349,9 +349,28 @@ main {
 }
 
 .open {
+  grid-column: 3 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
   padding: 2px 0;
   text-align: left;
+}
+
+.archived-face .open {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.archived-face .restore {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
 }
 
 .title-line {
@@ -362,17 +381,29 @@ main {
 }
 
 .title {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  display: block;
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   white-space: normal;
-  font-size: 18px;
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1.2;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+.size-label {
+  flex: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.size-label.is-unset {
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .title.is-placeholder {
@@ -424,11 +455,19 @@ main {
 }
 
 .meter {
+  grid-column: 1 / -1;
+  grid-row: 2;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
   align-items: center;
-  margin-top: 8px;
+  margin: 2px 0 0;
+}
+
+.tasks .meter {
+  grid-column: auto;
+  grid-row: auto;
+  margin: 8px 0 12px;
 }
 
 .size {
@@ -463,16 +502,12 @@ main {
   line-height: 1.05;
 }
 
-.frac {
-  font-size: 13px;
-  font-weight: 800;
-}
-
+.frac,
 .pct {
-  margin-top: 2px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .check-label {
@@ -609,6 +644,11 @@ main {
 .identity > div { flex: 1; min-width: 0; }
 
 .sheet h2,
+#workspace-title {
+  color: var(--accent);
+}
+
+.sheet h2,
 .title-input {
   margin: 0;
   font-size: 26px;
@@ -678,6 +718,26 @@ main {
 .segments button[data-status="blocked"][aria-pressed="true"] {
   background: var(--error);
   border-color: var(--error);
+}
+
+.size-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.size-pick button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  font-weight: 800;
+}
+
+.size-pick button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--cream);
 }
 
 .fact {
@@ -986,6 +1046,28 @@ textarea.field { min-height: 88px; resize: vertical; }
   background: var(--accent);
   border-color: var(--accent);
   color: var(--cream);
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.task-row .field { margin-top: 0; }
+
+.task-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  margin: 11px 0;
+  accent-color: var(--accent);
+}
+
+.task-row.is-done .field {
+  color: var(--muted);
+  text-decoration: line-through;
 }
 
 .check-row {

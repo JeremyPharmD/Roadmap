@@ -5,8 +5,20 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const STORAGE_KEY = "pocket-work-tracker";
   const STARTER_KEY = "pocket-work-tracker-starter";
-  const STARTER_VERSION = "7";
+  const STARTER_VERSION = "8";
+  const SIZES = [
+    { id: "small", label: "Small" },
+    { id: "medium", label: "Medium" },
+    { id: "large", label: "Large" },
+    { id: "xl", label: "Extra large" },
+    { id: "2xl", label: "2XL" },
+  ];
   const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
+  const LEGACY_COLORS = {
+    "#c24b2a": "#b54a2a",
+    "#5c6b45": "#1f6f8b",
+    "#b56a32": "#6b5e52",
+  };
   const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
   const PHASES = [
     { id: "evaluate", label: "Evaluate", short: "Evaluate" },
@@ -528,11 +540,17 @@ journalId: cleanLine(raw.journalId, 80),
     return tools;
   }
 
+  function projectColor(value) {
+    const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+    const mapped = LEGACY_COLORS[raw] || raw;
+    return COLORS.includes(mapped) ? mapped : COLORS[0];
+  }
+
   function normalizeItem(raw) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     const stageSource = raw.stage || raw.status;
     const stage = PHASES.some((phase) => phase.id === stageSource) ? stageSource : "evaluate";
-    const color = COLORS.includes(raw.color) ? raw.color : COLORS[0];
+    const color = projectColor(raw.color);
     const legacyTasks = Array.isArray(raw.tasks) ? raw.tasks : [];
     const checklistSource = Array.isArray(raw.checklist) ? raw.checklist : legacyTasks;
     const brief = raw.brief && typeof raw.brief === "object" ? raw.brief : {};
@@ -547,6 +565,7 @@ journalId: cleanLine(raw.journalId, 80),
       title: cleanText(raw.title, 2000),
       summary,
       color,
+      size: choiceId(SIZES, raw.size, ""),
       stage,
       archived: Boolean(raw.archived),
       nextStep: cleanLine(raw.nextStep || raw.nextAction || "", 200),
@@ -1013,8 +1032,27 @@ journalId: cleanLine(raw.journalId, 80),
     },
   ];
 
+  const MODULES = [
+    { id: "compliance-matrix", title: "Compliance matrix" },
+    {
+      id: "independence-vesta-rx-phase-one",
+      title: "Independence from VESTA RX phase one",
+      checklist: [line("Accounting verification", "action")],
+    },
+    { id: "patient-profile-refill-notes", title: "Patient profile, refill mechanism, and patient notes" },
+    { id: "gum-based-return-plan", title: "Gum-based return plan" },
+    { id: "peptide-release-plan", title: "Peptide release plan" },
+    { id: "labor-project", title: "Labor project (Travis blocking and planning)" },
+    { id: "branding-and-packaging", title: "Branding and packaging progress" },
+    { id: "stick-pack-machines", title: "Stick pack machines" },
+    { id: "independence-phase-two", title: "Independence phase two, all RXs" },
+    { id: "epic-scripts-home", title: "Epic Scripts home website" },
+    { id: "white-label", title: "White label" },
+    { id: "private-label", title: "Private label" },
+  ];
+
   function seedProjects() {
-    return STRATEGY.map((seed, index) => projectSeed(seed, index));
+    return MODULES.map((seed, index) => projectSeed(seed, index));
   }
 
   function sameText(left, right) {
@@ -1108,7 +1146,7 @@ function missingSeed(items, seed) {
 
 function migrate(saved, version) {
   let items = Array.isArray(saved) ? saved.map(normalizeItem).filter(Boolean) : [];
-  if (version === STARTER_VERSION) return items;
+  if (version === "7" || version === STARTER_VERSION) return items;
   if ((version == null || version === "") && !items.length) return seedProjects();
   if (!items.length) return [];
   const reviewDone = version === "2" || version === "3" || version === "4" || version === "5" || version === "6";
@@ -1388,6 +1426,16 @@ function migrate(saved, version) {
       const projects = seedProjects();
       return { projects, recommendations: seedRecommendations(projects), settings };
     }
+    if (!incomingProjects.length) {
+      return { projects: [], recommendations: recommendationInput.map(normalizeRecommendation).filter(Boolean), settings };
+    }
+    if (version === "7") {
+      return {
+        projects: seedProjects(),
+        recommendations: recommendationInput.map(normalizeRecommendation).filter(Boolean),
+        settings,
+      };
+    }
     let projects = migrate(incomingProjects, version);
     let recommendations = recommendationInput.map(normalizeRecommendation).filter(Boolean);
     if (version !== STARTER_VERSION && projects.length) {
@@ -1553,6 +1601,7 @@ function migrate(saved, version) {
     COLORS,
     PHASES,
     CHECK_TYPES,
+    SIZES,
     FREQUENCIES,
     DAYS,
     DAY_START,
