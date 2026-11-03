@@ -12,6 +12,7 @@ const state = {
   renamingId: null,
   renamePlace: "",
   renameOriginal: "",
+  animateId: null,
   panelTab: "overview",
   editingFields: false,
   updateComposerOpen: false,
@@ -397,19 +398,19 @@ function effortControl(item) {
 function rowFace(item, index) {
   const title = item.title || "New project";
   const expanded = state.openId === item.id;
+  const label = sizeLabel(item);
+  const size = label ? `<span class="size-label">${escapeHtml(label)}</span>` : "";
   return `
     <div class="row-face">
       <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
       <span class="rank">${index + 1}</span>
       <div class="card-main">
-        <div class="card-top">
-          <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
+        <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
+          <span class="title-row">
             <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-            ${stageBadge(item)}
-          </button>
-          ${effortControl(item)}
-        </div>
-        <button type="button" class="progress-hit" data-open="${escapeHtml(item.id)}" aria-label="Open ${escapeHtml(title)}">
+            ${size}
+          </span>
+          ${stageBadge(item)}
           <span class="progress-slot">${progressHtml(item)}</span>
         </button>
       </div>
@@ -418,13 +419,17 @@ function rowFace(item, index) {
 }
 
 function projectArticle(item, index) {
-  const selected = item.id === state.openId;
-  const classes = ["row", item.stage === "completed" ? "is-completed" : "", item.stage === "blocked" ? "is-blocked" : "", selected ? "is-selected" : ""]
+  const open = item.id === state.openId;
+  const shown = open && state.animateId !== item.id;
+  const classes = ["row", item.stage === "completed" ? "is-completed" : "", item.stage === "blocked" ? "is-blocked" : "", shown ? "is-open" : ""]
     .filter(Boolean)
     .join(" ");
   return `
     <article class="${classes}" data-id="${escapeHtml(item.id)}">
       ${rowFace(item, index)}
+      <div class="drawer">
+        <div class="drawer-inner">${open ? insideHtml(item) : ""}</div>
+      </div>
     </article>
   `;
 }
@@ -1288,9 +1293,12 @@ function tasksHtml(item) {
     )
     .join("");
   return `
-    <section class="tasks">
-      ${rows || `<p class="hint">No tasks yet.</p>`}
-      <button type="button" class="btn primary" data-add-check>+ Add task</button>
+    <section class="work-frame">
+      <h3>Work items</h3>
+      <p class="hint">Checked items are the percent on the card.</p>
+      ${progressHtml(item)}
+      ${rows || `<p class="hint">No work items yet.</p>`}
+      <button type="button" class="btn secondary" data-add-check>Add a work item</button>
     </section>
   `;
 }
@@ -1413,45 +1421,56 @@ function updatesPanel(item) {
   `;
 }
 
-function workspaceHtml(item) {
-  const title = item.title || "New project";
-  const tabs = ["overview", "tasks", "updates"].map((id) => {
-    const label = id[0].toUpperCase() + id.slice(1);
-    const selected = state.panelTab === id;
-    return `<button type="button" role="tab" data-tab="${id}" aria-selected="${selected ? "true" : "false"}">${label}</button>`;
-  }).join("");
-  const body = state.panelTab === "tasks" ? tasksHtml(item) : state.panelTab === "updates" ? updatesPanel(item) : overviewHtml(item);
-  const archiveLabel = item.archived
-    ? `<button type="button" role="menuitem" data-restore="${escapeHtml(item.id)}">Restore</button>`
-    : `<button type="button" role="menuitem" data-archive>Archive</button>`;
-  const menu = state.menuOpen
-    ? `
-      <div class="overflow-menu" role="menu">
-        <button type="button" role="menuitem" data-duplicate>Duplicate</button>
-        ${archiveLabel}
-        <button type="button" role="menuitem" class="danger" data-delete-project>Remove project</button>
-      </div>
-    `
-    : "";
+function statusUpdatesHtml(item) {
+  const entries = item.journal.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const list = entries
+    .map((entry) => {
+      const text = [entry.title, entry.body].map((part) => String(part || "").trim()).filter(Boolean).join("\n");
+      return `
+        <article class="entry" data-journal-id="${escapeHtml(entry.id)}">
+          <div class="entry-meta">
+            <time datetime="${escapeHtml(entry.createdAt)}">${escapeHtml(formatStamp(entry.createdAt))}</time>
+            <button type="button" class="text-btn danger" data-delete-journal="${escapeHtml(entry.id)}">Delete</button>
+          </div>
+          <p class="entry-body">${escapeHtml(text || "Update")}</p>
+        </article>
+      `;
+    })
+    .join("");
+  return `
+    <section class="updates">
+      <h3>Updates</h3>
+      <label class="stack-field">Status update
+        <textarea class="field" rows="2" maxlength="8000" data-journal-body placeholder="What changed">${escapeHtml(state.journalComposer.body)}</textarea>
+      </label>
+      <button type="button" class="btn secondary" data-add-journal>Add update</button>
+      ${list || `<p class="hint">No updates yet.</p>`}
+    </section>
+  `;
+}
+
+function insideHtml(item) {
   return `
     <div class="workspace" id="workspace">
-      <header class="panel-head">
-        <h2 id="workspace-title">${escapeHtml(title)}</h2>
-        <div class="panel-tools">
-          <button type="button" class="btn secondary" data-edit-toggle>${state.editingFields ? "Done" : "Edit"}</button>
-          <div class="overflow">
-            <button type="button" class="icon-btn" data-menu-toggle aria-label="More project actions" aria-expanded="${state.menuOpen ? "true" : "false"}" aria-haspopup="menu">⋯</button>
-            ${menu}
-          </div>
-          <button type="button" class="icon-btn" data-close aria-label="Close">
-            <span aria-hidden="true">×</span>
-          </button>
-        </div>
-      </header>
-      <div class="tabs" role="tablist">${tabs}</div>
-      <div class="tab-panel" role="tabpanel">${body}</div>
+      <div class="inside-tools"><button type="button" class="text-btn" data-close>Close</button></div>
+      <label class="stack-field">Name
+        <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
+      </label>
+      ${sizePicker(item)}
+      <label class="stack-field">Short description
+        <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Short description">${escapeHtml(item.summary || "")}</textarea>
+      </label>
+      ${statusUpdatesHtml(item)}
+      ${tasksHtml(item)}
+      <label class="stack-field">Notes
+        <textarea class="field" rows="4" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
+      </label>
     </div>
   `;
+}
+
+function workspaceHtml(item) {
+  return insideHtml(item);
 }
 
 function horizonSummary(deliverable) {
@@ -1602,23 +1621,8 @@ function renderBoard() {
 }
 
 function renderSheet() {
-  const item = state.openId && state.view === "projects" ? itemById(state.openId) : null;
-  if (!item) {
-    sheetRoot.innerHTML = "";
-    document.body.classList.remove("sheet-open");
-    return;
-  }
-  const alreadyOpen = Boolean(sheetRoot.querySelector(".sheet.is-in"));
-  const shown = alreadyOpen || !focusPanel ? " is-in" : "";
-  const modal = desktopQuery.matches ? "false" : "true";
-  const full = desktopQuery.matches ? "" : " is-full";
-  sheetRoot.innerHTML = `
-    <div class="backdrop${shown}" data-close></div>
-    <div class="sheet${shown}${full}" role="dialog" aria-modal="${modal}" aria-labelledby="workspace-title" tabindex="-1">
-      ${workspaceHtml(item)}
-    </div>
-  `;
-  document.body.classList.add("sheet-open");
+  sheetRoot.innerHTML = "";
+  document.body.classList.remove("sheet-open");
 }
 
 function render(options = {}) {
@@ -1690,11 +1694,28 @@ function restoreFocus() {
   document.querySelector("[data-add-project]")?.focus();
 }
 
+function settleOpen(id) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    state.animateId = null;
+    document.querySelector(`.row[data-id="${CSS.escape(id)}"]`)?.classList.add("is-open");
+    return;
+  }
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (state.openId !== id) return;
+      state.animateId = null;
+      document.querySelector(`.row[data-id="${CSS.escape(id)}"]`)?.classList.add("is-open");
+    });
+  });
+}
+
 function openProject(id) {
   if (!itemById(id)) return;
   closing = false;
-  focusPanel = true;
+  focusPanel = false;
+  const opening = state.openId !== id;
   state.openId = id;
+  if (opening) state.animateId = id;
   state.editingJournalId = null;
   state.renamingId = null;
   state.panelTab = "overview";
@@ -1706,40 +1727,35 @@ function openProject(id) {
   state.blockForm = null;
   state.blockError = "";
   render();
+  if (opening) settleOpen(id);
 }
 
 function closeProject() {
-  const sheet = sheetRoot.querySelector(".sheet");
-  if (!sheet || closing) {
-    closing = false;
+  const id = state.openId;
+  const row = id ? document.querySelector(`.row[data-id="${CSS.escape(id)}"]`) : null;
+  if (!row) {
     state.openId = null;
-    state.editingJournalId = null;
-    state.renamingId = null;
-    state.menuOpen = false;
-    state.editingFields = false;
-    renderSheet();
-    if (state.view === "projects") renderBoard();
+    render();
     restoreFocus();
     return;
   }
+  if (closing) return;
   closing = true;
-  sheet.style.transform = "";
-  sheet.classList.remove("is-in");
-  sheetRoot.querySelector(".backdrop")?.classList.remove("is-in");
+  row.classList.remove("is-open");
+  let done = false;
   const finish = () => {
-    if (!closing) return;
+    if (done || state.openId !== id) return;
+    done = true;
     closing = false;
     state.openId = null;
     state.editingJournalId = null;
-    state.renamingId = null;
-    state.menuOpen = false;
-    state.editingFields = false;
-    renderSheet();
-    renderBoard();
+    render();
     restoreFocus();
   };
-  sheet.addEventListener("transitionend", finish, { once: true });
-  window.setTimeout(finish, 320);
+  row.querySelector(".drawer")?.addEventListener("transitionend", (event) => {
+    if (event.propertyName === "max-height") finish();
+  });
+  window.setTimeout(finish, 380);
 }
 
 function addProject() {
@@ -3173,7 +3189,10 @@ document.addEventListener("click", (event) => {
     }
     const opener = event.target.closest("[data-open]");
     if (opener) {
-    if (opener.dataset.open === state.openId) return;
+    if (opener.dataset.open === state.openId) {
+      closeProject();
+      return;
+    }
       rememberOpener(opener);
       if (opener.closest(".roadmap")) state.view = "projects";
       openProject(opener.dataset.open);
