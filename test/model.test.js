@@ -134,6 +134,20 @@ test("an existing IT plan is enriched in place and a deleted one stays deleted",
   assert.ok(names.includes("Independence from BestRx"));
 });
 
+test("a project keeps its notes, size, and short description", () => {
+  const item = model.normalizeItem({
+    id: "named",
+    title: "Named",
+    size: "2xl",
+    summary: "Short description",
+    notes: "A note to keep",
+  });
+  assert.equal(item.size, "2xl");
+  assert.equal(item.summary, "Short description");
+  assert.equal(item.notes, "A note to keep");
+  assert.equal(model.normalizeItem({ id: "plain", title: "Plain" }).notes, "");
+});
+
 test("checklist percent counts checked lines only", () => {
   const item = model.normalizeItem({
     id: "a",
