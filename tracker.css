@@ -1856,6 +1856,12 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .inside-tools { display: flex; justify-content: flex-end; }
 
+.save-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .work-frame {
   margin: 10px 0 0;
   padding: 0;
