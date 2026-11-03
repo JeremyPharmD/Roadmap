@@ -1,14 +1,15 @@
 :root {
   color-scheme: light;
-  --paper: #ede6da;
-  --card: #f7f1e6;
-  --ink: #2a2420;
-  --muted: #6b5e52;
-  --accent: #b54a2a;
-  --line: #e4d8c8;
-  --cream: #f7f1e6;
-  --error: #8a3328;
-  --error-tint: #f6d6cf;
+  --paper: #f3e0cc;
+  --card: #fff6ec;
+  --ink: #3c241c;
+  --rock: #5a2c22;
+  --muted: #8a6552;
+  --accent: #c24b2a;
+  --line: #edd4be;
+  --cream: #fff6ec;
+  --error: #9c3428;
+  --error-tint: #f8d9d0;
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
 }
 
@@ -47,7 +48,7 @@ body.sheet-open { overflow: hidden; }
   align-items: center;
   gap: 12px;
   padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
-  background: var(--ink);
+  background: var(--rock);
   color: var(--cream);
 }
 
@@ -276,9 +277,9 @@ main {
 
 .row-face {
   display: grid;
-  grid-template-columns: 44px 36px minmax(0, 1fr) auto;
+  grid-template-columns: 44px 36px minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
 }
 
 .archived-face {
@@ -289,14 +290,14 @@ main {
 .row.is-settling {
   position: relative;
   z-index: 1;
-  box-shadow: 0 8px 22px rgba(42, 36, 32, 0.12);
+  box-shadow: 0 8px 22px rgba(74, 36, 28, 0.12);
 }
 
 .row.is-dragging {
   position: relative;
   z-index: 2;
   transition: none;
-  box-shadow: 0 14px 32px rgba(42, 36, 32, 0.18);
+  box-shadow: 0 14px 32px rgba(74, 36, 28, 0.18);
 }
 
 .row.is-completed .title { color: var(--muted); }
@@ -349,9 +350,22 @@ main {
 }
 
 .open {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   min-width: 0;
-  padding: 2px 0;
+  padding: 0 4px 4px;
   text-align: left;
+}
+
+.archived-face .open { grid-column: 1; }
+
+.archived-face .restore {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
 }
 
 .title-line {
@@ -370,9 +384,11 @@ main {
   overflow: hidden;
   overflow-wrap: anywhere;
   white-space: normal;
-  font-size: 18px;
+  color: var(--accent);
+  font-size: 26px;
+  line-height: 1.15;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .title.is-placeholder {
@@ -425,10 +441,10 @@ main {
 
 .meter {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
   align-items: center;
-  margin-top: 8px;
+  margin: 0;
 }
 
 .size {
@@ -463,16 +479,12 @@ main {
   line-height: 1.05;
 }
 
-.frac {
-  font-size: 13px;
-  font-weight: 800;
-}
-
+.frac,
 .pct {
-  margin-top: 2px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .check-label {
@@ -529,7 +541,7 @@ main {
 .confirm-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(42, 36, 32, 0.4);
+  background: rgba(74, 36, 28, 0.45);
   opacity: 0;
   transition: opacity 200ms ease;
 }
@@ -539,7 +551,7 @@ main {
 .backdrop.is-in { opacity: 1; }
 
 .sheet {
-  --accent: #b54a2a;
+  --accent: #c24b2a;
   position: fixed;
   z-index: 3;
   left: 50%;
@@ -581,7 +593,7 @@ main {
   height: 4px;
   margin: 0 auto;
   border-radius: 99px;
-  background: #cbbba8;
+  background: #e0c7b0;
 }
 
 .close {
@@ -609,6 +621,11 @@ main {
 .identity > div { flex: 1; min-width: 0; }
 
 .sheet h2,
+#workspace-title {
+  color: var(--accent);
+}
+
+.sheet h2,
 .title-input {
   margin: 0;
   font-size: 26px;
@@ -631,7 +648,7 @@ main {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fffaf3;
+  background: #fff9f3;
   font-weight: 700;
 }
 
@@ -988,6 +1005,28 @@ textarea.field { min-height: 88px; resize: vertical; }
   color: var(--cream);
 }
 
+.task-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.task-row .field { margin-top: 0; }
+
+.task-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  margin: 11px 0;
+  accent-color: var(--accent);
+}
+
+.task-row.is-done .field {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 .check-row {
   display: flex;
   flex-wrap: wrap;
@@ -1190,7 +1229,7 @@ textarea.field { min-height: 88px; resize: vertical; }
   line-height: 1.2;
 }
 
-.block.is-dragging { z-index: 2; box-shadow: 0 8px 18px rgba(42, 36, 32, 0.18); }
+.block.is-dragging { z-index: 2; box-shadow: 0 8px 18px rgba(74, 36, 28, 0.18); }
 
 .block-move {
   flex: 1;

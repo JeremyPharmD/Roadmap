@@ -6,7 +6,12 @@
   const STORAGE_KEY = "pocket-work-tracker";
   const STARTER_KEY = "pocket-work-tracker-starter";
   const STARTER_VERSION = "7";
-  const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
+  const COLORS = ["#c24b2a", "#5c6b45", "#b56a32"];
+  const LEGACY_COLORS = {
+    "#b54a2a": "#c24b2a",
+    "#1f6f8b": "#5c6b45",
+    "#6b5e52": "#b56a32",
+  };
   const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
   const PHASES = [
     { id: "evaluate", label: "Evaluate", short: "Evaluate" },
@@ -528,11 +533,17 @@ journalId: cleanLine(raw.journalId, 80),
     return tools;
   }
 
+  function projectColor(value) {
+    const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+    const mapped = LEGACY_COLORS[raw] || raw;
+    return COLORS.includes(mapped) ? mapped : COLORS[0];
+  }
+
   function normalizeItem(raw) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     const stageSource = raw.stage || raw.status;
     const stage = PHASES.some((phase) => phase.id === stageSource) ? stageSource : "evaluate";
-    const color = COLORS.includes(raw.color) ? raw.color : COLORS[0];
+    const color = projectColor(raw.color);
     const legacyTasks = Array.isArray(raw.tasks) ? raw.tasks : [];
     const checklistSource = Array.isArray(raw.checklist) ? raw.checklist : legacyTasks;
     const brief = raw.brief && typeof raw.brief === "object" ? raw.brief : {};
