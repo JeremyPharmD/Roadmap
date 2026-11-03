@@ -1455,14 +1455,13 @@ function insideHtml(item) {
         <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
       ${sizePicker(item)}
-      <label class="stack-field">Short description
-        <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Short description">${escapeHtml(item.summary || "")}</textarea>
+      ${tasksHtml(item)}
+      <label class="stack-field">Summary
+        <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Summary">${escapeHtml(item.summary || "")}</textarea>
       </label>
       <label class="stack-field">Notes
         <textarea class="field" rows="3" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
       </label>
-      ${statusUpdatesHtml(item)}
-      ${tasksHtml(item)}
     </div>
   `;
 }
