@@ -298,15 +298,14 @@ function load() {
 }
 
 function meterHtml(item) {
-  const progress = model.progressOf(item);
+  const steps = item.checklist.length;
+  const done = item.checklist.filter((entry) => entry.done).length;
+  const percent = steps ? Math.round((done / steps) * 100) : 0;
   return `
-    <span class="meter">
-      <span class="track" aria-hidden="true"><span class="fill" style="width:${progress.percent}%"></span></span>
-      <span class="count">
-        <span class="frac">${progress.fraction}</span>
-        <span class="pct">${progress.percentLabel}</span>
-      </span>
-      <span class="check-label">${escapeHtml(progress.label)}</span>
+    <span class="meter" aria-label="${done} of ${steps} tasks, ${percent}%">
+      <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
+      <span class="frac">${done}/${steps}</span>
+      <span class="pct">${percent}%</span>
     </span>
   `;
 }
@@ -341,7 +340,7 @@ function canReorder() {
   return state.view === "projects";
 }
 
-function rowFace(item, index, total) {
+function rowFace(item, index) {
   const title = item.title || "New project";
   const expanded = state.openId === item.id;
   return `
@@ -349,19 +348,9 @@ function rowFace(item, index, total) {
       <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
       <span class="rank">${index + 1}</span>
       <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
-        <span class="title-line">
-          <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-          <span class="chevron" aria-hidden="true"></span>
-        </span>
+        <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
+        ${meterHtml(item)}
       </button>
-      <span class="nudges">
-        <button type="button" class="nudge" data-move="up" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} up" ${index === 0 ? "disabled" : ""}>
-          <span class="arrow arrow-up" aria-hidden="true"></span>
-        </button>
-        <button type="button" class="nudge" data-move="down" data-id="${escapeHtml(item.id)}" aria-label="Move ${escapeHtml(title)} down" ${index === total - 1 ? "disabled" : ""}>
-          <span class="arrow arrow-down" aria-hidden="true"></span>
-        </button>
-      </span>
     </div>
   `;
 }
@@ -373,7 +362,7 @@ function projectArticle(item, index, total) {
     .join(" ");
   return `
     <article class="${classes}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
-      ${rowFace(item, index, total)}
+      ${rowFace(item, index)}
       ${open ? workspaceHtml(item) : ""}
     </article>
   `;
@@ -386,10 +375,8 @@ function archivedArticle(item) {
     <article class="row is-archived${open ? " is-open" : ""}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
       <div class="row-face archived-face">
         <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${open ? "true" : "false"}">
-          <span class="title-line">
-            <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-            <span class="chevron" aria-hidden="true"></span>
-          </span>
+          <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
+          ${meterHtml(item)}
         </button>
         <button type="button" class="restore" data-restore="${escapeHtml(item.id)}">Restore</button>
       </div>
@@ -408,7 +395,7 @@ function renderList() {
   return `
     <div class="layout">
     <button type="button" class="add-task" data-add-project>Add a project</button>
-    <p class="intro">Drag a card, or use the arrows. This order is the priority.</p>
+    <p class="intro">Drag a card to change the order. This order is the priority.</p>
     <div id="list">${list}</div>
     ${archivedHtml}
     </div>
@@ -1255,6 +1242,27 @@ function toolsHtml(item) {
   return `<section><h3>Planning tools</h3><p class="hint">These tables are manual. Future integrations and AI interpretation are not part of this version.</p>${parts.join("")}</section>`;
 }
 
+function tasksHtml(item) {
+  const rows = item.checklist
+    .map(
+      (entry) => `
+        <div class="task-row${entry.done ? " is-done" : ""}">
+          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Task")}" />
+          <input class="field" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Task" />
+          <button type="button" class="remove" data-remove-check="${escapeHtml(entry.id)}">Remove</button>
+        </div>
+      `,
+    )
+    .join("");
+  return `
+    <section class="tasks">
+      <h3>Tasks</h3>
+      ${rows || `<p class="hint">No tasks yet. Add one and the bar above fills as you check them off.</p>`}
+      <button type="button" class="add-line" data-add-check>Add a task</button>
+    </section>
+  `;
+}
+
 function workspaceHtml(item) {
   const phases = model.PHASES.map(
     (phase) => `<button type="button" data-stage="${phase.id}" aria-pressed="${item.stage === phase.id ? "true" : "false"}">${escapeHtml(phase.label)}</button>`,
@@ -1265,6 +1273,8 @@ function workspaceHtml(item) {
     <div class="workspace" id="workspace" tabindex="-1" role="region" aria-labelledby="workspace-title">
       ${close}
       <h2 id="workspace-title" class="${titleClass.trim()}">${escapeHtml(item.title || "New project")}</h2>
+      ${useSheet() ? meterHtml(item) : ""}
+      ${tasksHtml(item)}
       ${journalHtml(item)}
       <section>
         <h3>Edit</h3>
@@ -1692,13 +1702,13 @@ function syncCard(item) {
     if (next) next.textContent = `Next step: ${item.nextStep || "—"}`;
     const updated = row.querySelector(".updated");
     if (updated) updated.textContent = updatedLabel(item);
-    const meter = row.querySelector(".meter");
-    if (meter) meter.outerHTML = meterHtml(item);
+    const meter = meterHtml(item);
+    row.querySelectorAll(".meter").forEach((node) => {
+      node.outerHTML = meter;
+    });
     row.classList.toggle("is-completed", item.stage === "completed");
     row.classList.toggle("is-blocked", item.stage === "blocked");
     row.querySelector(".handle")?.setAttribute("aria-label", `Drag to reorder ${label}`);
-    row.querySelector('[data-move="up"]')?.setAttribute("aria-label", `Move ${label} up`);
-    row.querySelector('[data-move="down"]')?.setAttribute("aria-label", `Move ${label} down`);
   }
   const heading = document.querySelector("#workspace-title");
   if (heading && state.openId === item.id) heading.textContent = item.title || "New project";
@@ -1885,7 +1895,7 @@ function removeCheck(id) {
   touch(item);
   commit();
   render();
-  setStatus("Removed a checklist item.", { undo: true });
+  setStatus("Removed a task.", { undo: true });
 }
 
 function addJournal() {
@@ -2919,12 +2929,7 @@ document.addEventListener("change", (event) => {
       entry.done = box.checked;
       touch(item);
       save();
-      const hide = (state.checkFilter === "open" && box.checked) || (state.checkFilter === "done" && !box.checked);
-      if (hide) render({ focus: `[data-filter="${state.checkFilter}"]` });
-      else {
-        box.closest(".check-row")?.classList.toggle("is-done", box.checked);
-        syncCard(item);
-      }
+      render({ focus: `[data-check-id="${CSS.escape(entry.id)}"]` });
       return;
     }
     const linkRec = event.target.closest("[data-link-rec]");
