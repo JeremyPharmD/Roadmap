@@ -366,13 +366,14 @@ function stageBadge(item) {
 
 function progressHtml(item) {
   const steps = item.checklist.length;
-  if (!steps) return `<p class="progress-empty">No tasks yet</p>`;
   const done = item.checklist.filter((entry) => entry.done).length;
-  const percent = model.progressOf(item).percent;
-  const noun = steps === 1 ? "task" : "tasks";
+  const percent = steps ? model.progressOf(item).percent : 0;
   return `
-    <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
-    <p class="progress-text">${done} of ${steps} ${noun} · ${percent}%</p>
+    <span class="meter" aria-label="${done} of ${steps} work items, ${percent} percent">
+      <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
+      <span class="frac">${done}/${steps}</span>
+      <span class="pct">${percent}%</span>
+    </span>
   `;
 }
 
@@ -410,7 +411,6 @@ function rowFace(item, index) {
             <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
             ${size}
           </span>
-          ${stageBadge(item)}
           <span class="progress-slot">${progressHtml(item)}</span>
         </button>
       </div>
@@ -425,7 +425,7 @@ function projectArticle(item, index) {
     .filter(Boolean)
     .join(" ");
   return `
-    <article class="${classes}" data-id="${escapeHtml(item.id)}">
+    <article class="${classes}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
       ${rowFace(item, index)}
       <div class="drawer">
         <div class="drawer-inner">${open ? insideHtml(item) : ""}</div>
@@ -1295,10 +1295,11 @@ function tasksHtml(item) {
   return `
     <section class="work-frame">
       <h3>Work items</h3>
-      <p class="hint">Checked items are the percent on the card.</p>
-      ${progressHtml(item)}
-      ${rows || `<p class="hint">No work items yet.</p>`}
-      <button type="button" class="btn secondary" data-add-check>Add a work item</button>
+      ${rows}
+      <div class="add-work">
+        <input class="field" type="text" maxlength="2000" data-new-work placeholder="Add a work item" aria-label="Add a work item" />
+        <button type="button" data-add-check>Add</button>
+      </div>
     </section>
   `;
 }
@@ -1440,11 +1441,9 @@ function statusUpdatesHtml(item) {
   return `
     <section class="updates">
       <h3>Updates</h3>
-      <label class="stack-field">Status update
-        <textarea class="field" rows="2" maxlength="8000" data-journal-body placeholder="What changed">${escapeHtml(state.journalComposer.body)}</textarea>
-      </label>
+      <textarea class="field" rows="2" maxlength="8000" data-journal-body placeholder="What changed" aria-label="Status update">${escapeHtml(state.journalComposer.body)}</textarea>
       <button type="button" class="btn secondary" data-add-journal>Add update</button>
-      ${list || `<p class="hint">No updates yet.</p>`}
+      ${list}
     </section>
   `;
 }
@@ -1462,9 +1461,6 @@ function insideHtml(item) {
       </label>
       ${statusUpdatesHtml(item)}
       ${tasksHtml(item)}
-      <label class="stack-field">Notes
-        <textarea class="field" rows="4" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
-      </label>
     </div>
   `;
 }
@@ -2075,9 +2071,15 @@ function moveCheck(id, direction) {
 function addCheck() {
   const item = itemById(state.openId);
   if (!item) return;
+  const field = document.querySelector("[data-new-work]");
+  const text = field?.value.trim() || "";
+  if (!text) {
+    field?.focus();
+    return;
+  }
   const entry = {
     id: crypto.randomUUID(),
-    text: "",
+    text: text.slice(0, 2000),
     done: false,
     type: "action",
     due: "",
@@ -2089,7 +2091,7 @@ function addCheck() {
   state.checkFilter = state.checkFilter === "done" ? "all" : state.checkFilter;
   touch(item);
   save();
-  render({ focus: `[data-check-text="${CSS.escape(entry.id)}"]` });
+  render({ focus: "[data-new-work]" });
 }
 
 function removeCheck(id) {
@@ -3502,6 +3504,11 @@ document.addEventListener("keydown", (event) => {
       cancelRename();
       return;
     }
+  }
+  if (event.key === "Enter" && event.target.dataset?.newWork != null) {
+    event.preventDefault();
+    addCheck();
+    return;
   }
   if (event.key === "Enter" && event.target.dataset && event.target.dataset.field === "title") event.preventDefault();
   if (pendingConfirm) {
