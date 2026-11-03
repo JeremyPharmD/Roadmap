@@ -153,6 +153,7 @@ function normalizeCheck(raw) {
     id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim().slice(0, 80) : newId(),
     text,
     done: Boolean(raw.done),
+    forReview: Boolean(raw.forReview),
     type: checkType(raw.type),
     due: cleanDate(typeof raw.due === "string" ? raw.due : ""),
 journalId: cleanLine(raw.journalId, 80),

@@ -1303,6 +1303,28 @@ function tasksHtml(item) {
   `;
 }
 
+function updatesHtml(item) {
+  const rows = item.checklist
+    .filter((entry) => entry.text.trim())
+    .map((entry) => {
+      const pressed = entry.forReview ? "true" : "false";
+      return `
+        <button type="button" class="review-mark${entry.forReview ? " is-on" : ""}" data-mark-review="${escapeHtml(entry.id)}" aria-pressed="${pressed}">
+          <span class="review-tick" aria-hidden="true"></span>
+          <span class="review-copy">Review</span>
+          <span class="review-name">${escapeHtml(entry.text)}</span>
+        </button>
+      `;
+    })
+    .join("");
+  return `
+    <section class="updates">
+      <h3>Updates</h3>
+      <div class="review-grid">${rows}</div>
+    </section>
+  `;
+}
+
 function sizePicker(item) {
   const buttons = model.SIZES.map(
     (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}" aria-label="${escapeHtml(entry.label)}">${escapeHtml(entry.short)}</button>`,
@@ -1456,6 +1478,7 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
+      ${updatesHtml(item)}
       <label class="stack-field">Summary
         <textarea class="field bullet-note" rows="2" maxlength="2000" data-field="summary" aria-label="Summary">${escapeHtml(bulletDraft(item.summary))}</textarea>
       </label>
@@ -2088,6 +2111,7 @@ function addCheck() {
     journalId: "",
     workstream: "",
     answer: "",
+    forReview: false,
   };
   item.checklist.push(entry);
   state.checkFilter = state.checkFilter === "done" ? "all" : state.checkFilter;
@@ -3242,6 +3266,17 @@ document.addEventListener("click", (event) => {
       touch(item);
       save();
       render({ focus: `[data-stage="${CSS.escape(item.stage)}"]` });
+      return;
+    }
+    const markReview = event.target.closest("[data-mark-review]");
+    if (markReview) {
+      const item = itemById(state.openId);
+      const entry = item?.checklist.find((line) => line.id === markReview.dataset.markReview);
+      if (!item || !entry) return;
+      entry.forReview = !entry.forReview;
+      touch(item);
+      save();
+      render({ focus: `[data-mark-review="${CSS.escape(entry.id)}"]` });
       return;
     }
     if (event.target.closest("[data-save-card]")) {
