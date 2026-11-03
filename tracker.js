@@ -343,14 +343,16 @@ function canReorder() {
 function rowFace(item, index) {
   const title = item.title || "New project";
   const expanded = state.openId === item.id;
+  const sizes = [["", "Size"], ...model.SIZES.map((entry) => [entry.id, entry.label])];
   return `
     <div class="row-face">
       <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
       <span class="rank">${index + 1}</span>
       <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
         <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-        ${meterHtml(item)}
       </button>
+      <select class="field project-size" data-project-size="${escapeHtml(item.id)}" aria-label="Size of ${escapeHtml(title)}">${optionsHtml(sizes, item.size || "")}</select>
+      ${meterHtml(item)}
     </div>
   `;
 }
@@ -2920,6 +2922,14 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.dataset?.projectSize) {
+    const item = itemById(event.target.dataset.projectSize);
+    if (!item) return;
+    item.size = model.SIZES.some((entry) => entry.id === event.target.value) ? event.target.value : "";
+    touch(item);
+    save();
+    return;
+  }
   const item = state.openId ? itemById(state.openId) : null;
   try {
     const box = event.target.closest("[data-check-id]");
