@@ -6,11 +6,11 @@
   const STORAGE_KEY = "pocket-work-tracker";
   const STARTER_KEY = "pocket-work-tracker-starter";
   const STARTER_VERSION = "7";
-  const COLORS = ["#c24b2a", "#5c6b45", "#b56a32"];
+  const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
   const LEGACY_COLORS = {
-    "#b54a2a": "#c24b2a",
-    "#1f6f8b": "#5c6b45",
-    "#6b5e52": "#b56a32",
+    "#c24b2a": "#b54a2a",
+    "#5c6b45": "#1f6f8b",
+    "#b56a32": "#6b5e52",
   };
   const REVIEW = ["Cost savings", "Timing", "Effort", "Target delivery", "Regulatory check"];
   const PHASES = [
