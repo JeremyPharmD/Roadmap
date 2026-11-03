@@ -353,10 +353,8 @@ function sizeLabel(item) {
   return model.SIZES.find((entry) => entry.id === item.size)?.label || "";
 }
 
-const EFFORT_SHORT = { small: "S", medium: "M", large: "L", xl: "XL", "2xl": "2XL" };
-
 function effortShort(item) {
-  return EFFORT_SHORT[item.size] || "";
+  return model.SIZES.find((entry) => entry.id === item.size)?.short || "";
 }
 
 function stageBadge(item) {
@@ -366,13 +364,19 @@ function stageBadge(item) {
 
 function progressHtml(item) {
   const steps = item.checklist.length;
-  if (!steps) return `<p class="progress-empty">No tasks yet</p>`;
   const done = item.checklist.filter((entry) => entry.done).length;
-  const percent = model.progressOf(item).percent;
-  const noun = steps === 1 ? "task" : "tasks";
+  const percent = steps ? model.progressOf(item).percent : 0;
+  const letter = effortShort(item);
+  const mark = letter ? `<span class="size-letter">${escapeHtml(letter)}</span>` : "";
   return `
-    <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
-    <p class="progress-text">${done} of ${steps} ${noun} · ${percent}%</p>
+    <span class="meter-line">
+      ${mark}
+      <span class="meter" aria-label="${done} of ${steps} work items, ${percent} percent">
+        <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
+        <span class="frac">${done}/${steps}</span>
+        <span class="pct">${percent}%</span>
+      </span>
+    </span>
   `;
 }
 
@@ -398,8 +402,6 @@ function effortControl(item) {
 function rowFace(item, index) {
   const title = item.title || "New project";
   const expanded = state.openId === item.id;
-  const label = sizeLabel(item);
-  const size = label ? `<span class="size-label">${escapeHtml(label)}</span>` : "";
   return `
     <div class="row-face">
       <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
@@ -408,9 +410,7 @@ function rowFace(item, index) {
         <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
           <span class="title-row">
             <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-            ${size}
           </span>
-          ${stageBadge(item)}
           <span class="progress-slot">${progressHtml(item)}</span>
         </button>
       </div>
@@ -425,7 +425,7 @@ function projectArticle(item, index) {
     .filter(Boolean)
     .join(" ");
   return `
-    <article class="${classes}" data-id="${escapeHtml(item.id)}">
+    <article class="${classes}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
       ${rowFace(item, index)}
       <div class="drawer">
         <div class="drawer-inner">${open ? insideHtml(item) : ""}</div>
@@ -1284,10 +1284,10 @@ function tasksHtml(item) {
   const rows = item.checklist
     .map(
       (entry) => `
-        <div class="task-row${entry.done ? " is-done" : ""}">
+        <div class="work-check${entry.done ? " is-done" : ""}">
           <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
-          <input class="field" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
-          <button type="button" class="remove" data-remove-check="${escapeHtml(entry.id)}">Remove</button>
+          <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
+          <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
         </div>
       `,
     )
@@ -1295,17 +1295,17 @@ function tasksHtml(item) {
   return `
     <section class="work-frame">
       <h3>Work items</h3>
-      <p class="hint">Checked items are the percent on the card.</p>
-      ${progressHtml(item)}
-      ${rows || `<p class="hint">No work items yet.</p>`}
-      <button type="button" class="btn secondary" data-add-check>Add a work item</button>
+      <div class="work-grid">
+        <button type="button" class="work-plus" data-add-check aria-label="Add a work item">+</button>
+        ${rows}
+      </div>
     </section>
   `;
 }
 
 function sizePicker(item) {
   const buttons = model.SIZES.map(
-    (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}">${escapeHtml(entry.label)}</button>`,
+    (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}" aria-label="${escapeHtml(entry.label)}">${escapeHtml(entry.short)}</button>`,
   ).join("");
   return `
     <section class="size-section">
@@ -1440,11 +1440,9 @@ function statusUpdatesHtml(item) {
   return `
     <section class="updates">
       <h3>Updates</h3>
-      <label class="stack-field">Status update
-        <textarea class="field" rows="2" maxlength="8000" data-journal-body placeholder="What changed">${escapeHtml(state.journalComposer.body)}</textarea>
-      </label>
+      <textarea class="field bullet-note" rows="3" maxlength="8000" data-journal-body placeholder="• " aria-label="Status update">${escapeHtml(state.journalComposer.body || "• ")}</textarea>
       <button type="button" class="btn secondary" data-add-journal>Add update</button>
-      ${list || `<p class="hint">No updates yet.</p>`}
+      ${list}
     </section>
   `;
 }
@@ -1457,13 +1455,12 @@ function insideHtml(item) {
         <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
       ${sizePicker(item)}
-      <label class="stack-field">Short description
-        <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Short description">${escapeHtml(item.summary || "")}</textarea>
-      </label>
-      ${statusUpdatesHtml(item)}
       ${tasksHtml(item)}
+      <label class="stack-field">Summary
+        <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Summary">${escapeHtml(item.summary || "")}</textarea>
+      </label>
       <label class="stack-field">Notes
-        <textarea class="field" rows="4" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
+        <textarea class="field" rows="3" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
       </label>
     </div>
   `;
@@ -1765,6 +1762,7 @@ function addProject() {
     summary: "",
     color: model.COLORS[state.items.length % model.COLORS.length],
     stage: "evaluate",
+    checklist: [{ text: "Get Insights", type: "action", done: false }],
     updatedAt: new Date().toISOString(),
   });
   const archived = state.items.filter((entry) => entry.archived);
@@ -2075,6 +2073,11 @@ function moveCheck(id, direction) {
 function addCheck() {
   const item = itemById(state.openId);
   if (!item) return;
+  const blank = item.checklist.find((entry) => !entry.text.trim());
+  if (blank) {
+    render({ focus: `[data-check-text="${CSS.escape(blank.id)}"]` });
+    return;
+  }
   const entry = {
     id: crypto.randomUUID(),
     text: "",
@@ -2090,6 +2093,14 @@ function addCheck() {
   touch(item);
   save();
   render({ focus: `[data-check-text="${CSS.escape(entry.id)}"]` });
+}
+
+function updateText(value) {
+  return String(value || "")
+    .split("\n")
+    .map((line) => line.replace(/^[\s•]+/, "").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function removeCheck(id) {
@@ -2109,7 +2120,7 @@ function addJournal() {
   if (!item) return;
   const title = state.journalComposer.title.trim();
   const body = state.journalComposer.body;
-  if (!title && !body.trim()) {
+  if (!title && !updateText(body)) {
     setStatus("Write a title or some text before adding the update.", { error: true, sticky: true });
     return;
   }
@@ -3502,6 +3513,23 @@ document.addEventListener("keydown", (event) => {
       cancelRename();
       return;
     }
+  }
+  if (event.key === "Enter" && event.target.dataset?.checkText) {
+    event.preventDefault();
+    addCheck();
+    return;
+  }
+  if (event.key === "Enter" && !event.shiftKey && event.target.dataset?.journalBody != null) {
+    event.preventDefault();
+    const field = event.target;
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    const next = `${field.value.slice(0, start)}\n• ${field.value.slice(end)}`;
+    field.value = next;
+    const caret = start + 3;
+    field.selectionStart = field.selectionEnd = caret;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
   }
   if (event.key === "Enter" && event.target.dataset && event.target.dataset.field === "title") event.preventDefault();
   if (pendingConfirm) {
