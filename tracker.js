@@ -1303,6 +1303,28 @@ function tasksHtml(item) {
   `;
 }
 
+function updatesHtml(item) {
+  const rows = item.checklist
+    .filter((entry) => entry.text.trim())
+    .map((entry) => {
+      const pressed = entry.forReview ? "true" : "false";
+      return `
+        <button type="button" class="review-mark${entry.forReview ? " is-on" : ""}" data-mark-review="${escapeHtml(entry.id)}" aria-pressed="${pressed}">
+          <span class="review-tick" aria-hidden="true"></span>
+          <span class="review-copy">Review</span>
+          <span class="review-name">${escapeHtml(entry.text)}</span>
+        </button>
+      `;
+    })
+    .join("");
+  return `
+    <section class="updates">
+      <h3>Updates</h3>
+      <div class="review-grid">${rows}</div>
+    </section>
+  `;
+}
+
 function sizePicker(item) {
   const buttons = model.SIZES.map(
     (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}" aria-label="${escapeHtml(entry.label)}">${escapeHtml(entry.short)}</button>`,
@@ -1456,12 +1478,14 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
+      ${updatesHtml(item)}
       <label class="stack-field">Summary
-        <textarea class="field" rows="2" maxlength="2000" data-field="summary" placeholder="Summary">${escapeHtml(item.summary || "")}</textarea>
+        <textarea class="field bullet-note" rows="2" maxlength="2000" data-field="summary" aria-label="Summary">${escapeHtml(bulletDraft(item.summary))}</textarea>
       </label>
       <label class="stack-field">Notes
-        <textarea class="field" rows="3" maxlength="8000" data-field="notes" placeholder="Notes">${escapeHtml(item.notes || "")}</textarea>
+        <textarea class="field bullet-note" rows="3" maxlength="8000" data-field="notes" aria-label="Notes">${escapeHtml(bulletDraft(item.notes))}</textarea>
       </label>
+      <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
   `;
 }
@@ -2087,6 +2111,7 @@ function addCheck() {
     journalId: "",
     workstream: "",
     answer: "",
+    forReview: false,
   };
   item.checklist.push(entry);
   state.checkFilter = state.checkFilter === "done" ? "all" : state.checkFilter;
@@ -2101,6 +2126,56 @@ function updateText(value) {
     .map((line) => line.replace(/^[\s•]+/, "").trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function bulletDraft(text) {
+  const value = String(text || "");
+  return value.trim() ? value : "• ";
+}
+
+function bulletField(field) {
+  const start = field.selectionStart ?? field.value.length;
+  const lines = field.value.split("\n");
+  let pos = 0;
+  let caret = start;
+  const nextLines = lines.map((line) => {
+    const lead = line.match(/^\s*/)[0];
+    const body = line.slice(lead.length);
+    let rewritten = line;
+    if (body && !body.startsWith("• ")) {
+      rewritten = `${lead}• ${body.replace(/^[•\-*]\s?/, "")}`;
+    }
+    const lineEnd = pos + line.length;
+    const added = rewritten.length - line.length;
+    if (added && start > pos) caret += start >= lineEnd || start - pos >= lead.length ? added : 0;
+    pos = lineEnd + 1;
+    return rewritten;
+  });
+  const next = nextLines.join("\n");
+  if (next === field.value) return;
+  field.value = next;
+  const point = Math.max(0, Math.min(next.length, caret));
+  field.selectionStart = field.selectionEnd = point;
+}
+
+function saveOpenCard() {
+  const item = itemById(state.openId);
+  const root = item ? document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .workspace`) : null;
+  if (!item || !root) return;
+  const title = root.querySelector("[data-field='title']");
+  const summary = root.querySelector("[data-field='summary']");
+  const notes = root.querySelector("[data-field='notes']");
+  if (title) applyText(item, title);
+  if (summary) applyText(item, summary);
+  if (notes) applyText(item, notes);
+  root.querySelectorAll("[data-check-text]").forEach((field) => applyText(item, field));
+  save();
+  const button = root.querySelector("[data-save-card]");
+  if (!button) return;
+  button.textContent = "Saved";
+  window.setTimeout(() => {
+    if (button.isConnected) button.textContent = "Save";
+  }, 1200);
 }
 
 function removeCheck(id) {
@@ -2607,17 +2682,16 @@ function applyText(item, target) {
     syncCard(item);
     return true;
   }
-  if (field === "summary") {
-    const cleaned = target.value.slice(0, 2000);
-    if (cleaned !== target.value) target.value = cleaned;
-    item.summary = cleaned;
-    touch(item);
-    return true;
-  }
-  if (field === "notes") {
-    const cleaned = target.value.slice(0, 8000);
-    if (cleaned !== target.value) target.value = cleaned;
-    item.notes = cleaned;
+  if (field === "summary" || field === "notes") {
+    bulletField(target);
+    const limit = field === "summary" ? 2000 : 8000;
+    const shown = target.value.slice(0, limit);
+    const stored = updateText(shown) ? shown : "";
+    if (!stored && target.value !== "• ") {
+      target.value = "• ";
+      target.selectionStart = target.selectionEnd = target.value.length;
+    }
+    item[field] = stored;
     touch(item);
     return true;
   }
@@ -3194,6 +3268,21 @@ document.addEventListener("click", (event) => {
       render({ focus: `[data-stage="${CSS.escape(item.stage)}"]` });
       return;
     }
+    const markReview = event.target.closest("[data-mark-review]");
+    if (markReview) {
+      const item = itemById(state.openId);
+      const entry = item?.checklist.find((line) => line.id === markReview.dataset.markReview);
+      if (!item || !entry) return;
+      entry.forReview = !entry.forReview;
+      touch(item);
+      save();
+      render({ focus: `[data-mark-review="${CSS.escape(entry.id)}"]` });
+      return;
+    }
+    if (event.target.closest("[data-save-card]")) {
+      saveOpenCard();
+      return;
+    }
     if (event.target.closest("[data-close]")) {
       closeProject();
       return;
@@ -3514,9 +3603,26 @@ document.addEventListener("keydown", (event) => {
       return;
     }
   }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+    if (state.openId) {
+      event.preventDefault();
+      saveOpenCard();
+    }
+    return;
+  }
   if (event.key === "Enter" && event.target.dataset?.checkText) {
     event.preventDefault();
     addCheck();
+    return;
+  }
+  if (event.key === "Enter" && !event.shiftKey && (event.target.dataset?.field === "summary" || event.target.dataset?.field === "notes")) {
+    event.preventDefault();
+    const field = event.target;
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    field.value = `${field.value.slice(0, start)}\n• ${field.value.slice(end)}`;
+    field.selectionStart = field.selectionEnd = start + 3;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
     return;
   }
   if (event.key === "Enter" && !event.shiftKey && event.target.dataset?.journalBody != null) {
