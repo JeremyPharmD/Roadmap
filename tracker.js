@@ -9,6 +9,14 @@ const state = {
   checkFilter: "open",
   expandedJournal: new Set(),
   editingJournalId: null,
+  renamingId: null,
+  renamePlace: "",
+  renameOriginal: "",
+  panelTab: "overview",
+  editingFields: false,
+  updateComposerOpen: false,
+  menuOpen: false,
+  effortMenuId: null,
   journalComposer: { when: "", title: "", body: "" },
   draft: null,
   blockForm: null,
@@ -344,49 +352,96 @@ function sizeLabel(item) {
   return model.SIZES.find((entry) => entry.id === item.size)?.label || "";
 }
 
-function rowFace(item, index) {
-  const title = item.title || "New project";
-  const expanded = state.openId === item.id;
-  const label = sizeLabel(item);
+const EFFORT_SHORT = { small: "S", medium: "M", large: "L", xl: "XL", "2xl": "2XL" };
+
+function effortShort(item) {
+  return EFFORT_SHORT[item.size] || "";
+}
+
+function stageBadge(item) {
+  const phase = phaseOf(item.stage);
+  return `<span class="stage-badge" data-stage="${escapeHtml(item.stage)}">${escapeHtml(phase.short || phase.label)}</span>`;
+}
+
+function progressHtml(item) {
+  const steps = item.checklist.length;
+  if (!steps) return `<p class="progress-empty">No tasks yet</p>`;
+  const done = item.checklist.filter((entry) => entry.done).length;
+  const percent = model.progressOf(item).percent;
+  const noun = steps === 1 ? "task" : "tasks";
   return `
-    <div class="row-face">
-      <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
-      <span class="rank">${index + 1}</span>
-      <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
-        <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-        <span class="size-label${label ? "" : " is-unset"}">${escapeHtml(label || "—")}</span>
+    <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
+    <p class="progress-text">${done} of ${steps} ${noun} · ${percent}%</p>
+  `;
+}
+
+function effortControl(item) {
+  const short = effortShort(item);
+  const open = state.effortMenuId === item.id;
+  const options = model.SIZES.map((entry) => {
+    const selected = item.size === entry.id ? "true" : "false";
+    return `<button type="button" role="option" data-effort-choice="${escapeHtml(entry.id)}" data-effort-for="${escapeHtml(item.id)}" aria-selected="${selected}">${escapeHtml(entry.label)}</button>`;
+  }).join("");
+  const face = short ? `Effort: ${short}` : "Set effort";
+  return `
+    <div class="effort">
+      <button type="button" class="effort-btn" data-effort-toggle="${escapeHtml(item.id)}" aria-haspopup="listbox" aria-expanded="${open ? "true" : "false"}" aria-label="${escapeHtml(face)}">
+        <span class="effort-label">${escapeHtml(face)}</span>
+        <span class="caret" aria-hidden="true"></span>
       </button>
-      ${meterHtml(item)}
+      ${open ? `<div class="effort-menu" role="listbox" aria-label="Effort">${options}</div>` : ""}
     </div>
   `;
 }
 
-function projectArticle(item, index, total) {
-  const open = item.id === state.openId && !useSheet();
-  const classes = ["row", item.stage === "completed" ? "is-completed" : "", item.stage === "blocked" ? "is-blocked" : "", open ? "is-open" : ""]
+function rowFace(item, index) {
+  const title = item.title || "New project";
+  const expanded = state.openId === item.id;
+  return `
+    <div class="row-face">
+      <button type="button" class="handle" aria-label="Drag to reorder ${escapeHtml(title)}"><span class="grip" aria-hidden="true"></span></button>
+      <span class="rank">${index + 1}</span>
+      <div class="card-main">
+        <div class="card-top">
+          <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${expanded ? "true" : "false"}">
+            <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
+            ${stageBadge(item)}
+          </button>
+          ${effortControl(item)}
+        </div>
+        <button type="button" class="progress-hit" data-open="${escapeHtml(item.id)}" aria-label="Open ${escapeHtml(title)}">
+          <span class="progress-slot">${progressHtml(item)}</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function projectArticle(item, index) {
+  const selected = item.id === state.openId;
+  const classes = ["row", item.stage === "completed" ? "is-completed" : "", item.stage === "blocked" ? "is-blocked" : "", selected ? "is-selected" : ""]
     .filter(Boolean)
     .join(" ");
   return `
-    <article class="${classes}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
+    <article class="${classes}" data-id="${escapeHtml(item.id)}">
       ${rowFace(item, index)}
-      ${open ? workspaceHtml(item) : ""}
     </article>
   `;
 }
 
 function archivedArticle(item) {
-  const open = item.id === state.openId && !useSheet();
   const title = item.title || "New project";
+  const selected = item.id === state.openId ? " is-selected" : "";
   return `
-    <article class="row is-archived${open ? " is-open" : ""}" data-id="${escapeHtml(item.id)}" style="--accent:${escapeHtml(item.color)}">
+    <article class="row is-archived${selected}" data-id="${escapeHtml(item.id)}">
       <div class="row-face archived-face">
-        <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${open ? "true" : "false"}">
+        <button type="button" class="open" data-open="${escapeHtml(item.id)}" aria-expanded="${selected ? "true" : "false"}">
           <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
-          ${meterHtml(item)}
+          ${stageBadge(item)}
+          <span class="progress-slot">${progressHtml(item)}</span>
         </button>
-        <button type="button" class="restore" data-restore="${escapeHtml(item.id)}">Restore</button>
+        <button type="button" class="btn secondary restore" data-restore="${escapeHtml(item.id)}">Restore</button>
       </div>
-      ${open ? workspaceHtml(item) : ""}
     </article>
   `;
 }
@@ -394,16 +449,21 @@ function archivedArticle(item) {
 function renderList() {
   const active = activeItems();
   const archived = state.items.filter((item) => item.archived);
-  const list = active.map((item, index) => projectArticle(item, index, active.length)).join("");
+  const list = active.map((item, index) => projectArticle(item, index)).join("");
   const archivedHtml = archived.length
     ? `<section class="archived-list" aria-label="Archived projects"><h2>Archived</h2>${archived.map(archivedArticle).join("")}</section>`
     : "";
   return `
     <div class="layout">
-    <button type="button" class="add-task" data-add-project>Add a project</button>
-    <p class="intro">Drag a card to change the order. This order is the priority.</p>
-    <div id="list">${list}</div>
-    ${archivedHtml}
+      <header class="page-head">
+        <div>
+          <h2>Project roadmap</h2>
+          <p class="intro">Drag a card to change the order. This order is the priority.</p>
+        </div>
+        <button type="button" class="btn primary" data-add-project>+ New project</button>
+      </header>
+      <div id="list">${list}</div>
+      ${archivedHtml}
     </div>
   `;
 }
@@ -1220,8 +1280,8 @@ function tasksHtml(item) {
     .map(
       (entry) => `
         <div class="task-row${entry.done ? " is-done" : ""}">
-          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Task")}" />
-          <input class="field" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Task" />
+          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
+          <input class="field" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
           <button type="button" class="remove" data-remove-check="${escapeHtml(entry.id)}">Remove</button>
         </div>
       `,
@@ -1229,11 +1289,8 @@ function tasksHtml(item) {
     .join("");
   return `
     <section class="tasks">
-      <h3>Work items</h3>
-      <p class="hint">The card percentage is checked work items divided by all work items.</p>
-      ${meterHtml(item)}
-      ${rows || `<p class="hint">No work items yet.</p>`}
-      <button type="button" class="add-line" data-add-check>Add a work item</button>
+      ${rows || `<p class="hint">No tasks yet.</p>`}
+      <button type="button" class="btn primary" data-add-check>+ Add task</button>
     </section>
   `;
 }
@@ -1250,16 +1307,149 @@ function sizePicker(item) {
   `;
 }
 
-function workspaceHtml(item) {
-  const titleClass = useSheet() ? "" : " visually-hidden";
-  const close = useSheet() ? "" : `<div class="inline-actions"><button type="button" data-close>Close</button></div>`;
+function editFieldsHtml(item) {
+  const phases = model.PHASES.map(
+    (phase) => `<button type="button" data-stage="${escapeHtml(phase.id)}" aria-pressed="${item.stage === phase.id ? "true" : "false"}">${escapeHtml(phase.label)}</button>`,
+  ).join("");
+  const sizes = model.SIZES.map(
+    (entry) => `<button type="button" data-choose-size="${escapeHtml(entry.id)}" aria-pressed="${item.size === entry.id ? "true" : "false"}">${escapeHtml(entry.label)}</button>`,
+  ).join("");
   return `
-    <div class="workspace" id="workspace" tabindex="-1" role="region" aria-labelledby="workspace-title">
-      ${close}
-      <h2 id="workspace-title" class="${titleClass.trim()}">${escapeHtml(item.title || "New project")}</h2>
-      ${sizePicker(item)}
-      ${journalHtml(item)}
-      ${tasksHtml(item)}
+    <div class="edit-fields">
+      <label class="stack-field">Project name
+        <input class="field" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
+      </label>
+      <label class="stack-field">Summary
+        <textarea class="field" rows="3" maxlength="2000" data-field="summary">${escapeHtml(item.summary || "")}</textarea>
+      </label>
+      <div class="stack-field"><span class="label">Stage</span>
+        <div class="segments" role="group" aria-label="Current stage">${phases}</div>
+      </div>
+      <div class="stack-field"><span class="label">Effort</span>
+        <div class="segments" role="group" aria-label="Effort">${sizes}</div>
+      </div>
+      <label class="stack-field">Next step
+        <input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep || "")}" />
+      </label>
+      <label class="stack-field">Notes
+        <textarea class="field" rows="4" maxlength="8000" data-field="notes">${escapeHtml(item.notes || "")}</textarea>
+      </label>
+    </div>
+  `;
+}
+
+function overviewHtml(item) {
+  if (state.editingFields) return editFieldsHtml(item);
+  const summary = item.summary && item.summary.trim() ? escapeHtml(item.summary) : `<span class="muted">No summary yet</span>`;
+  const next = item.nextStep && item.nextStep.trim() ? escapeHtml(item.nextStep) : `<span class="muted">No next step</span>`;
+  const effort = sizeLabel(item) || "Not set";
+  return `
+    <dl class="facts">
+      <div><dt>Summary</dt><dd class="pre">${summary}</dd></div>
+      <div><dt>Stage</dt><dd>${stageBadge(item)}</dd></div>
+      <div><dt>Effort</dt><dd>${escapeHtml(effort)}</dd></div>
+      <div><dt>Next step</dt><dd>${next}</dd></div>
+    </dl>
+  `;
+}
+
+function updatesPanel(item) {
+  const entries = item.journal.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const list = entries
+    .map((entry) => {
+      if (state.editingJournalId === entry.id) {
+        return `
+          <article class="entry" data-journal-id="${escapeHtml(entry.id)}">
+            <label class="stack-field">Title
+              <input class="field" data-edit-journal-title="${escapeHtml(entry.id)}" value="${escapeHtml(entry.title)}" />
+            </label>
+            <label class="stack-field">Update
+              <textarea class="field" data-edit-journal-body="${escapeHtml(entry.id)}">${escapeHtml(entry.body)}</textarea>
+            </label>
+            <div class="inline-actions">
+              <button type="button" class="btn primary" data-save-journal="${escapeHtml(entry.id)}">Save update</button>
+              <button type="button" class="btn secondary" data-cancel-journal>Cancel</button>
+            </div>
+          </article>
+        `;
+      }
+      const text = [entry.title, entry.body].map((part) => String(part || "").trim()).filter(Boolean).join("\n");
+      return `
+        <article class="entry" data-journal-id="${escapeHtml(entry.id)}">
+          <div class="entry-meta">
+            <time datetime="${escapeHtml(entry.createdAt)}">${escapeHtml(formatStamp(entry.createdAt))}</time>
+            <button type="button" class="text-btn" data-edit-journal="${escapeHtml(entry.id)}">Edit</button>
+            <button type="button" class="text-btn danger" data-delete-journal="${escapeHtml(entry.id)}">Delete</button>
+          </div>
+          <p class="entry-body">${escapeHtml(text || "Update")}</p>
+        </article>
+      `;
+    })
+    .join("");
+  const composer = state.updateComposerOpen
+    ? `
+      <div class="draft">
+        <label class="stack-field">Date and time
+          <input class="field" type="datetime-local" data-journal-when value="${escapeHtml(state.journalComposer.when || toLocalInput())}" />
+        </label>
+        <label class="stack-field">Title, optional
+          <input class="field" type="text" maxlength="200" data-journal-title value="${escapeHtml(state.journalComposer.title)}" />
+        </label>
+        <label class="stack-field">Update
+          <textarea class="field" maxlength="8000" data-journal-body>${escapeHtml(state.journalComposer.body)}</textarea>
+        </label>
+        <div class="inline-actions">
+          <button type="button" class="btn primary" data-add-journal>Save update</button>
+          <button type="button" class="btn secondary" data-cancel-update>Cancel</button>
+        </div>
+      </div>
+    `
+    : `<button type="button" class="btn secondary" data-add-update>+ Add update</button>`;
+  return `
+    <section class="updates">
+      ${composer}
+      ${list || `<p class="hint">No updates yet.</p>`}
+    </section>
+  `;
+}
+
+function workspaceHtml(item) {
+  const title = item.title || "New project";
+  const tabs = ["overview", "tasks", "updates"].map((id) => {
+    const label = id[0].toUpperCase() + id.slice(1);
+    const selected = state.panelTab === id;
+    return `<button type="button" role="tab" data-tab="${id}" aria-selected="${selected ? "true" : "false"}">${label}</button>`;
+  }).join("");
+  const body = state.panelTab === "tasks" ? tasksHtml(item) : state.panelTab === "updates" ? updatesPanel(item) : overviewHtml(item);
+  const archiveLabel = item.archived
+    ? `<button type="button" role="menuitem" data-restore="${escapeHtml(item.id)}">Restore</button>`
+    : `<button type="button" role="menuitem" data-archive>Archive</button>`;
+  const menu = state.menuOpen
+    ? `
+      <div class="overflow-menu" role="menu">
+        <button type="button" role="menuitem" data-duplicate>Duplicate</button>
+        ${archiveLabel}
+        <button type="button" role="menuitem" class="danger" data-delete-project>Remove project</button>
+      </div>
+    `
+    : "";
+  return `
+    <div class="workspace" id="workspace">
+      <header class="panel-head">
+        <h2 id="workspace-title">${escapeHtml(title)}</h2>
+        <div class="panel-tools">
+          <button type="button" class="btn secondary" data-edit-toggle>${state.editingFields ? "Done" : "Edit"}</button>
+          <div class="overflow">
+            <button type="button" class="icon-btn" data-menu-toggle aria-label="More project actions" aria-expanded="${state.menuOpen ? "true" : "false"}" aria-haspopup="menu">⋯</button>
+            ${menu}
+          </div>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      </header>
+      <div class="tabs" role="tablist">${tabs}</div>
+      <div class="tab-panel" role="tabpanel">${body}</div>
     </div>
   `;
 }
@@ -1413,21 +1603,19 @@ function renderBoard() {
 
 function renderSheet() {
   const item = state.openId && state.view === "projects" ? itemById(state.openId) : null;
-  if (!item || !useSheet()) {
+  if (!item) {
     sheetRoot.innerHTML = "";
     document.body.classList.remove("sheet-open");
     return;
   }
   const alreadyOpen = Boolean(sheetRoot.querySelector(".sheet.is-in"));
   const shown = alreadyOpen || !focusPanel ? " is-in" : "";
+  const modal = desktopQuery.matches ? "false" : "true";
+  const full = desktopQuery.matches ? "" : " is-full";
   sheetRoot.innerHTML = `
     <div class="backdrop${shown}" data-close></div>
-    <div class="sheet${shown}" role="dialog" aria-modal="true" aria-labelledby="workspace-title" tabindex="-1" style="--accent:${escapeHtml(item.color)}">
-      <div class="sheet-bar">
-        <button type="button" class="grab" aria-label="Drag down to close"></button>
-        <button type="button" class="close" data-close>Close</button>
-      </div>
-      <div class="sheet-body">${workspaceHtml(item)}</div>
+    <div class="sheet${shown}${full}" role="dialog" aria-modal="${modal}" aria-labelledby="workspace-title" tabindex="-1">
+      ${workspaceHtml(item)}
     </div>
   `;
   document.body.classList.add("sheet-open");
@@ -1445,7 +1633,11 @@ function render(options = {}) {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.setAttribute("aria-selected", button.dataset.view === state.view ? "true" : "false");
   });
-  if (options.focus) document.querySelector(options.focus)?.focus({ preventScroll: true });
+  if (options.focus) {
+    const focused = document.querySelector(options.focus);
+    focused?.focus({ preventScroll: true });
+    if (focused?.classList.contains("title-rename")) focused.select();
+  }
   if (options.reveal) {
     const target = document.querySelector(options.reveal);
     const scroller = target?.closest(".sheet-body, .desk");
@@ -1504,6 +1696,12 @@ function openProject(id) {
   focusPanel = true;
   state.openId = id;
   state.editingJournalId = null;
+  state.renamingId = null;
+  state.panelTab = "overview";
+  state.editingFields = false;
+  state.updateComposerOpen = false;
+  state.menuOpen = false;
+  state.effortMenuId = null;
   state.draft = null;
   state.blockForm = null;
   state.blockError = "";
@@ -1516,6 +1714,9 @@ function closeProject() {
     closing = false;
     state.openId = null;
     state.editingJournalId = null;
+    state.renamingId = null;
+    state.menuOpen = false;
+    state.editingFields = false;
     renderSheet();
     if (state.view === "projects") renderBoard();
     restoreFocus();
@@ -1530,6 +1731,9 @@ function closeProject() {
     closing = false;
     state.openId = null;
     state.editingJournalId = null;
+    state.renamingId = null;
+    state.menuOpen = false;
+    state.editingFields = false;
     renderSheet();
     renderBoard();
     restoreFocus();
@@ -1554,6 +1758,11 @@ function addProject() {
   returnFocus = { source: "add" };
   state.openId = item.id;
   state.view = "projects";
+  state.panelTab = "overview";
+  state.editingFields = true;
+  state.updateComposerOpen = false;
+  state.menuOpen = false;
+  state.effortMenuId = null;
   save();
   render({ focus: "[data-field='title']" });
 }
@@ -1567,6 +1776,10 @@ function duplicateOpen() {
   const archived = state.items.filter((entry) => entry.archived);
   state.items = [...state.items.filter((entry) => !entry.archived), ...archived];
   state.openId = copy.id;
+  state.panelTab = "overview";
+  state.editingFields = false;
+  state.menuOpen = false;
+  state.updateComposerOpen = false;
   focusPanel = true;
   save();
   render();
@@ -1654,6 +1867,19 @@ function syncCard(item) {
     if (title) {
       title.textContent = label;
       title.classList.toggle("is-placeholder", !item.title);
+    }
+    const badge = row.querySelector(".stage-badge");
+    if (badge) {
+      const phase = phaseOf(item.stage);
+      badge.textContent = phase.short || phase.label;
+      badge.dataset.stage = item.stage;
+    }
+    const slot = row.querySelector(".progress-slot");
+    if (slot) slot.innerHTML = progressHtml(item);
+    const effortLabel = row.querySelector(".effort-label");
+    if (effortLabel) {
+      const short = effortShort(item);
+      effortLabel.textContent = short ? `Effort: ${short}` : "Set effort";
     }
     const blurb = row.querySelector(".blurb");
     if (blurb) {
@@ -1882,6 +2108,7 @@ function addJournal() {
   item.journal.push(entry);
   state.expandedJournal.add(entry.id);
   state.journalComposer = { when: "", title: "", body: "" };
+  state.updateComposerOpen = false;
   touch(item);
   save();
   render({ reveal: `[data-journal-id="${CSS.escape(entry.id)}"]` });
@@ -2257,7 +2484,7 @@ function renderConfirm() {
       <p>${escapeHtml(pendingConfirm.body)}</p>
       <div class="confirm-actions">
         <button type="button" class="confirm-cancel" data-confirm-cancel>Cancel</button>
-        <button type="button" class="confirm-ok" data-confirm-ok>${escapeHtml(pendingConfirm.okLabel)}</button>
+        <button type="button" class="confirm-ok${pendingConfirm.danger ? " is-danger" : ""}" data-confirm-ok>${escapeHtml(pendingConfirm.okLabel)}</button>
       </div>
     </div>
   `;
@@ -2354,11 +2581,17 @@ function applyText(item, target) {
     return true;
   }
   if (field === "summary") {
-    const cleaned = target.value.replace(/\n/g, " ").slice(0, 2000);
+    const cleaned = target.value.slice(0, 2000);
     if (cleaned !== target.value) target.value = cleaned;
     item.summary = cleaned;
     touch(item);
-    syncCard(item);
+    return true;
+  }
+  if (field === "notes") {
+    const cleaned = target.value.slice(0, 8000);
+    if (cleaned !== target.value) target.value = cleaned;
+    item.notes = cleaned;
+    touch(item);
     return true;
   }
   if (field === "nextStep") {
@@ -2480,16 +2713,9 @@ document.addEventListener("pointerdown", (event) => {
   }
   const handle = event.target.closest(".handle");
   if (!handle || pendingConfirm || handle.closest(".workspace") || !canReorder()) return;
-  if (state.openId && useSheet()) return;
+  if (!desktopQuery.matches && state.openId) return;
   event.preventDefault();
-  if (state.openId && !useSheet()) {
-    state.openId = null;
-    for (const openRow of document.querySelectorAll(".row.is-open")) {
-      openRow.classList.remove("is-open");
-      openRow.querySelector(".workspace")?.remove();
-      openRow.querySelector(".open")?.setAttribute("aria-expanded", "false");
-    }
-  }
+  state.effortMenuId = null;
   const row = handle.closest(".row");
   drag = { row, pointerId: event.pointerId, startY: event.clientY, compensation: 0 };
   row.classList.add("is-dragging");
@@ -2584,6 +2810,17 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (pendingConfirm) return;
+    const insideEffort = event.target.closest(".effort");
+    const insideMenu = event.target.closest(".overflow");
+    const closedEffort = Boolean(state.effortMenuId && !insideEffort);
+    const closedMenu = Boolean(state.menuOpen && !insideMenu);
+    if (closedEffort) state.effortMenuId = null;
+    if (closedMenu) state.menuOpen = false;
+    const continues = event.target.closest("[data-open], [data-add-project], [data-close], [data-tab], [data-edit-toggle], [data-duplicate], [data-archive], [data-restore], [data-delete-project], [data-add-check], [data-remove-check], [data-add-journal], [data-add-update], [data-view], [data-stage], [data-choose-size]");
+    if ((closedEffort || closedMenu) && !continues) {
+      render();
+      return;
+    }
     if (event.target.closest("[data-download-raw]")) {
       downloadRaw();
       return;
@@ -2642,7 +2879,17 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (event.target.closest("[data-delete-project]")) {
-      deleteOpenProject();
+      const removing = itemById(state.openId);
+      state.menuOpen = false;
+      openConfirm({
+        title: "Remove this project?",
+        body: `“${removing?.title || "New project"}” will leave this list. You can undo that from the save line.`,
+        okLabel: "Remove project",
+        danger: true,
+        onOk() {
+          deleteOpenProject();
+        },
+      });
       return;
     }
     const move = event.target.closest("[data-move]");
@@ -2851,6 +3098,55 @@ document.addEventListener("click", (event) => {
       deleteBlock(deleteBlockButton.dataset.deleteBlock);
       return;
     }
+    const tab = event.target.closest("[data-tab]");
+    if (tab) {
+      state.panelTab = tab.dataset.tab;
+      state.menuOpen = false;
+      render({ focus: `[data-tab="${CSS.escape(state.panelTab)}"]` });
+      return;
+    }
+    if (event.target.closest("[data-edit-toggle]")) {
+      state.editingFields = !state.editingFields;
+      state.panelTab = "overview";
+      state.menuOpen = false;
+      render({ focus: state.editingFields ? "[data-field='title']" : "[data-edit-toggle]" });
+      return;
+    }
+    if (event.target.closest("[data-menu-toggle]")) {
+      state.menuOpen = !state.menuOpen;
+      render({ focus: "[data-menu-toggle]" });
+      return;
+    }
+    if (event.target.closest("[data-add-update]")) {
+      state.updateComposerOpen = true;
+      state.panelTab = "updates";
+      render({ focus: "[data-journal-body]" });
+      return;
+    }
+    if (event.target.closest("[data-cancel-update]")) {
+      state.updateComposerOpen = false;
+      render({ focus: "[data-add-update]" });
+      return;
+    }
+    const effortToggle = event.target.closest("[data-effort-toggle]");
+    if (effortToggle) {
+      const id = effortToggle.dataset.effortToggle;
+      state.effortMenuId = state.effortMenuId === id ? null : id;
+      render({ focus: `[data-effort-toggle="${CSS.escape(id)}"]` });
+      return;
+    }
+    const effortChoice = event.target.closest("[data-effort-choice]");
+    if (effortChoice) {
+      const sized = itemById(effortChoice.dataset.effortFor);
+      if (!sized) return;
+      const value = effortChoice.dataset.effortChoice;
+      sized.size = model.SIZES.some((entry) => entry.id === value) ? value : "";
+      state.effortMenuId = null;
+      touch(sized);
+      save();
+      render({ focus: `[data-effort-toggle="${CSS.escape(sized.id)}"]` });
+      return;
+    }
     const chooseSize = event.target.closest("[data-choose-size]");
     if (chooseSize) {
       const sized = itemById(state.openId);
@@ -2868,10 +3164,7 @@ document.addEventListener("click", (event) => {
       item.stage = stage.dataset.stage;
       touch(item);
       save();
-      document.querySelectorAll("[data-stage]").forEach((button) => {
-        button.setAttribute("aria-pressed", button.dataset.stage === item.stage ? "true" : "false");
-      });
-      syncCard(item);
+      render({ focus: `[data-stage="${CSS.escape(item.stage)}"]` });
       return;
     }
     if (event.target.closest("[data-close]")) {
@@ -2880,10 +3173,7 @@ document.addEventListener("click", (event) => {
     }
     const opener = event.target.closest("[data-open]");
     if (opener) {
-      if (opener.classList.contains("open") && opener.dataset.open === state.openId) {
-        closeProject();
-        return;
-      }
+    if (opener.dataset.open === state.openId) return;
       rememberOpener(opener);
       if (opener.closest(".roadmap")) state.view = "projects";
       openProject(opener.dataset.open);
@@ -3136,7 +3426,64 @@ document.addEventListener("pointerup", (event) => {
   if (dy > 90) closeProject();
 });
 
+function finishRename() {
+  if (!state.renamingId) return;
+  state.renamingId = null;
+  state.renamePlace = "";
+  state.renameOriginal = "";
+  render();
+}
+
+function cancelRename() {
+  const item = itemById(state.renamingId);
+  if (item) item.title = state.renameOriginal;
+  state.renamingId = null;
+  state.renamePlace = "";
+  state.renameOriginal = "";
+  if (item) {
+    save();
+    syncCard(item);
+  }
+  render();
+}
+
+document.addEventListener("dblclick", (event) => {
+  const name = event.target.closest("[data-rename]");
+  if (!name || pendingConfirm) return;
+  const item = itemById(name.dataset.rename);
+  if (!item) return;
+  event.preventDefault();
+  state.renameOriginal = item.title;
+  state.renamingId = item.id;
+  state.renamePlace = name.closest(".workspace, .sheet") ? "inside" : "face";
+  if (state.openId !== item.id) state.openId = item.id;
+  focusPanel = false;
+  render({ focus: ".title-rename" });
+});
+
+document.addEventListener("focusout", (event) => {
+  if (!event.target.classList?.contains("title-rename")) return;
+  const id = state.renamingId;
+  setTimeout(() => {
+    if (state.renamingId !== id) return;
+    if (document.activeElement?.classList.contains("title-rename")) return;
+    finishRename();
+  }, 0);
+});
+
 document.addEventListener("keydown", (event) => {
+  if (event.target.classList?.contains("title-rename")) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finishRename();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelRename();
+      return;
+    }
+  }
   if (event.key === "Enter" && event.target.dataset && event.target.dataset.field === "title") event.preventDefault();
   if (pendingConfirm) {
     trapTab(event, confirmRoot.querySelector(".confirm"));
@@ -3145,8 +3492,16 @@ document.addEventListener("keydown", (event) => {
   }
   if (!state.openId) return;
   const sheet = sheetRoot.querySelector(".sheet");
-  if (sheet) trapTab(event, sheet);
-  if (event.key === "Escape") closeProject();
+  if (sheet && !desktopQuery.matches) trapTab(event, sheet);
+  if (event.key === "Escape") {
+    if (state.effortMenuId || state.menuOpen) {
+      state.effortMenuId = null;
+      state.menuOpen = false;
+      render();
+      return;
+    }
+    closeProject();
+  }
 });
 
 desktopQuery.addEventListener("change", () => {
