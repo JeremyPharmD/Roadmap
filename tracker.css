@@ -2075,21 +2075,23 @@ textarea.field { min-height: 88px; resize: vertical; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
 .point {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: fit-content;
-  max-width: 100%;
+  width: min(100%, 34rem);
   min-width: 0;
-  padding: 2px 4px;
-  border-radius: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffaf3;
 }
 
-.point:focus-within { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.point:focus-within { border-color: var(--accent); }
 
 .point-mark {
   width: 6px;
@@ -2100,11 +2102,9 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .point-text {
-  field-sizing: content;
-  flex: 0 1 auto;
-  width: auto;
-  min-width: 12ch;
-  max-width: 32rem;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 4px 0;
   border: 0;
@@ -2115,6 +2115,12 @@ textarea.field { min-height: 88px; resize: vertical; }
   font-weight: 600;
   line-height: 1.45;
   color: var(--ink);
+}
+
+.point-text::placeholder { color: var(--muted); font-weight: 500; }
+
+.point:has(.point-text:placeholder-shown) .point-x {
+  visibility: hidden;
 }
 
 .point-x,
