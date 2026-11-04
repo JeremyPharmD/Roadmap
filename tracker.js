@@ -380,6 +380,21 @@ function progressHtml(item) {
   `;
 }
 
+function deliveryLabel(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+  return match ? `${match[2]}-${match[3]}` : "";
+}
+
+function deliveryHtml(item) {
+  const label = deliveryLabel(item.targetDate);
+  return `
+    <label class="delivery${label ? "" : " is-empty"}">
+      <span class="delivery-face">${escapeHtml(label || "MM-DD")}</span>
+      <input type="date" data-delivery="${escapeHtml(item.id)}" value="${escapeHtml(item.targetDate || "")}" aria-label="Delivery date for ${escapeHtml(item.title || "project")}" />
+    </label>
+  `;
+}
+
 function effortControl(item) {
   const short = effortShort(item);
   const open = state.effortMenuId === item.id;
@@ -414,6 +429,7 @@ function rowFace(item, index) {
           <span class="progress-slot">${progressHtml(item)}</span>
         </button>
       </div>
+      ${deliveryHtml(item)}
     </div>
   `;
 }
@@ -1296,8 +1312,8 @@ function tasksHtml(item) {
     <section class="work-frame">
       <h3>Work items</h3>
       <div class="work-grid">
-        <button type="button" class="work-plus" data-add-check aria-label="Add a work item">+</button>
         ${rows}
+        <button type="button" class="work-plus" data-add-check aria-label="Add a work item">+</button>
       </div>
     </section>
   `;
@@ -1462,10 +1478,8 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
-      <label class="stack-field">Summary
-        <textarea class="field bullet-note" rows="1" maxlength="2000" data-field="summary" aria-label="Summary">${escapeHtml(bulletDraft(item.summary))}</textarea>
-      </label>
-      <label class="stack-field">Notes
+      ${summaryHtml(item)}
+      <label class="stack-field notes-field">Notes
         <textarea class="field bullet-note" rows="1" maxlength="8000" data-field="notes" aria-label="Notes">${escapeHtml(bulletDraft(item.notes))}</textarea>
       </label>
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
@@ -2155,6 +2169,91 @@ function updateText(value) {
     .join("\n");
 }
 
+let summaryBlank = null;
+
+function summaryPointText(value) {
+  return String(value || "").replace(/^[\s]*[•\-*]\s?/, "").trim();
+}
+
+function summaryPoints(text) {
+  if (!String(text || "").trim()) return [];
+  return String(text)
+    .split("\n")
+    .map(summaryPointText)
+    .filter(Boolean);
+}
+
+function summaryText(lines) {
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `• ${line}`)
+    .join("\n");
+}
+
+function displayedSummary(item) {
+  const lines = summaryPoints(item.summary);
+  const blankAt = summaryBlank;
+  summaryBlank = null;
+  if (typeof blankAt === "number") lines.splice(Math.max(0, Math.min(blankAt, lines.length)), 0, "");
+  else if (!lines.length) lines.push("");
+  return lines;
+}
+
+function summaryHtml(item) {
+  const rows = displayedSummary(item)
+    .map(
+      (line, index) => `
+        <li class="point">
+          <span class="point-mark" aria-hidden="true"></span>
+          <input class="point-text" type="text" maxlength="500" value="${escapeHtml(line)}" data-summary-index="${index}" aria-label="Summary point ${index + 1}" />
+          <button type="button" class="point-x" data-remove-summary="${index}" aria-label="Delete summary point ${index + 1}">×</button>
+        </li>
+      `,
+    )
+    .join("");
+  return `
+    <section class="summary-frame">
+      <h3>Summary</h3>
+      <ul class="point-list">${rows}</ul>
+      <button type="button" class="point-add" data-add-summary aria-label="Add a summary point">+</button>
+    </section>
+  `;
+}
+
+function collectSummary(root) {
+  return [...root.querySelectorAll("[data-summary-index]")].map((field) => field.value);
+}
+
+function writeSummary(item, lines) {
+  item.summary = summaryText(lines);
+  touch(item);
+}
+
+function addSummaryPoint(afterIndex) {
+  const item = itemById(state.openId);
+  const root = document.querySelector(".row.is-open .workspace");
+  if (!item || !root) return;
+  const lines = collectSummary(root).map((line) => line.trim());
+  writeSummary(item, lines);
+  const focusAt = afterIndex == null ? summaryPoints(item.summary).length : lines.slice(0, afterIndex + 1).filter(Boolean).length;
+  summaryBlank = focusAt;
+  save();
+  render({ focus: `[data-summary-index="${focusAt}"]` });
+}
+
+function removeSummaryPoint(index) {
+  const item = itemById(state.openId);
+  const root = document.querySelector(".row.is-open .workspace");
+  if (!item || !root) return;
+  const lines = collectSummary(root);
+  lines.splice(Number(index), 1);
+  writeSummary(item, lines);
+  save();
+  const next = Math.max(0, Math.min(Number(index), Math.max(0, lines.filter((line) => line.trim()).length)));
+  render({ focus: `[data-summary-index="${next}"]` });
+}
+
 function bulletDraft(text) {
   const value = String(text || "");
   if (!value.trim()) return "• ";
@@ -2199,10 +2298,9 @@ function saveOpenCard() {
   const root = item ? document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .workspace`) : null;
   if (!item || !root) return;
   const title = root.querySelector("[data-field='title']");
-  const summary = root.querySelector("[data-field='summary']");
   const notes = root.querySelector("[data-field='notes']");
   if (title) applyText(item, title);
-  if (summary) applyText(item, summary);
+  if (root.querySelector("[data-summary-index]")) writeSummary(item, collectSummary(root));
   if (notes) applyText(item, notes);
   root.querySelectorAll("[data-check-text]").forEach((field) => applyText(item, field));
   save();
@@ -3049,6 +3147,15 @@ document.addEventListener("click", (event) => {
       addCheck();
       return;
     }
+    if (event.target.closest("[data-add-summary]")) {
+      addSummaryPoint();
+      return;
+    }
+    const removeSummary = event.target.closest("[data-remove-summary]");
+    if (removeSummary) {
+      removeSummaryPoint(removeSummary.dataset.removeSummary);
+      return;
+    }
     if (event.target.closest("[data-add-journal]")) {
       addJournal();
       return;
@@ -3323,6 +3430,18 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.dataset?.delivery) {
+    const item = itemById(event.target.dataset.delivery);
+    if (!item) return;
+    item.targetDate = event.target.value;
+    touch(item);
+    save();
+    const face = event.target.closest(".delivery")?.querySelector(".delivery-face");
+    const label = deliveryLabel(item.targetDate);
+    if (face) face.textContent = label || "MM-DD";
+    event.target.closest(".delivery")?.classList.toggle("is-empty", !label);
+    return;
+  }
   const reviewBox = event.target.closest("[data-card-review]");
   if (reviewBox) {
     const item = itemById(reviewBox.dataset.cardReview);
@@ -3525,6 +3644,14 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.dataset?.summaryIndex != null) {
+    const item = itemById(state.openId);
+    const root = event.target.closest(".workspace");
+    if (!item || !root) return;
+    writeSummary(item, collectSummary(root));
+    save();
+    return;
+  }
   if (event.target.dataset?.journalWhen != null || event.target.dataset?.journalTitle != null || event.target.dataset?.journalBody != null) {
     applyText(itemById(state.openId) || { brief: {} }, event.target);
     return;
@@ -3646,6 +3773,12 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && event.target.dataset?.checkText) {
     event.preventDefault();
     addCheck();
+    return;
+  }
+  if (event.target.dataset?.summaryIndex != null && (event.key === "Enter" || (event.key === "Backspace" && event.target.value === ""))) {
+    event.preventDefault();
+    if (event.key === "Enter") addSummaryPoint(Number(event.target.dataset.summaryIndex));
+    else if (document.querySelectorAll("[data-summary-index]").length > 1) removeSummaryPoint(event.target.dataset.summaryIndex);
     return;
   }
   if (event.key === "Enter" && !event.shiftKey && (event.target.dataset?.field === "summary" || event.target.dataset?.field === "notes")) {
