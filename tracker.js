@@ -2152,12 +2152,7 @@ function saveOpenCard() {
   if (notes) applyText(item, notes);
   root.querySelectorAll("[data-check-text]").forEach((field) => applyText(item, field));
   save();
-  const button = root.querySelector("[data-save-card]");
-  if (!button) return;
-  button.textContent = "Saved";
-  window.setTimeout(() => {
-    if (button.isConnected) button.textContent = "Save";
-  }, 1200);
+  closeProject();
 }
 
 function removeCheck(id) {
