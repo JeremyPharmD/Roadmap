@@ -13,7 +13,7 @@
   --amber: #8a5a00;
   --amber-tint: #f8efe2;
   --teal-tint: #e7f2f5;
-  font-family: "Nunito Sans", "Segoe UI", sans-serif;
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -24,10 +24,8 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-size: 16px;
-  font-weight: 400;
-  line-height: 1.55;
-  letter-spacing: 0.01em;
-  -webkit-font-smoothing: antialiased;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -731,7 +729,7 @@ main {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fffaf3;
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .field:focus {
@@ -1085,9 +1083,9 @@ main {
 .stack-field {
   display: block;
   margin-top: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -1860,51 +1858,32 @@ textarea.field { min-height: 88px; resize: vertical; }
 .drawer {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 360ms ease;
+  transition: max-height 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .drawer.is-sizing { transition: none; }
 
-.drawer textarea.bullet-note,
-.drawer textarea.summary-note {
+.drawer textarea.bullet-note {
   min-height: 0;
-  margin-top: 4px;
+  margin-top: 6px;
+  padding: 12px 14px;
   overflow: hidden;
   resize: none;
-  font-weight: 400;
-}
-
-.drawer textarea.bullet-note {
-  padding: 8px 12px;
-  line-height: 1.6;
-}
-
-.drawer textarea.summary-note {
-  margin-top: 2px;
-  padding: 2px 0 8px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  font-size: 17px;
-  line-height: 1.65;
-  letter-spacing: 0.01em;
-  color: var(--ink);
-}
-
-.drawer textarea.summary-note::placeholder {
-  color: var(--muted);
-  font-weight: 400;
+  border-radius: 12px;
+  line-height: 1.7;
+  font-size: 16px;
 }
 
 .row.is-open .drawer { max-height: 2400px; }
 
 .drawer-inner { min-height: 0; }
 
+.row.is-open { border-radius: 16px; }
+
 .drawer .workspace {
   height: auto;
-  margin-top: 4px;
-  padding: 4px 2px 2px;
+  margin-top: 6px;
+  padding: 8px 4px 4px;
   overflow: visible;
   border-top: 1px solid var(--line);
 }
@@ -2049,21 +2028,7 @@ textarea.field { min-height: 88px; resize: vertical; }
   color: var(--muted);
 }
 
-.name-input { font-size: 18px; font-weight: 600; color: var(--ink); letter-spacing: 0; }
-
-.titles h1,
-.page-head h2,
-.title,
-.rank,
-.btn,
-.card-review,
-.size-letter {
-  font-weight: 600;
-  letter-spacing: 0;
-}
-
-.work-frame h3,
-.size-section h3 { font-weight: 600; }
+.name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .drawer { transition: none; }
