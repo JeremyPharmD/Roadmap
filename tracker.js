@@ -2206,7 +2206,7 @@ function summaryHtml(item) {
       (line, index) => `
         <li class="point">
           <span class="point-mark" aria-hidden="true"></span>
-          <input class="point-text" type="text" maxlength="500" value="${escapeHtml(line)}" data-summary-index="${index}" aria-label="Summary point ${index + 1}" />
+          <input class="point-text" type="text" maxlength="500" value="${escapeHtml(line)}" data-summary-index="${index}" placeholder="Add a point" aria-label="Summary point ${index + 1}" />
           <button type="button" class="point-x" data-remove-summary="${index}" aria-label="Delete summary point ${index + 1}">×</button>
         </li>
       `,
