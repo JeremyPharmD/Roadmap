@@ -413,10 +413,6 @@ function rowFace(item, index) {
           </span>
           <span class="progress-slot">${progressHtml(item)}</span>
         </button>
-        <label class="card-review">
-          <input type="checkbox" data-card-review="${escapeHtml(item.id)}" ${item.review ? "checked" : ""} aria-label="Review ${escapeHtml(title)}" />
-          Review
-        </label>
       </div>
     </div>
   `;
@@ -1454,7 +1450,13 @@ function statusUpdatesHtml(item) {
 function insideHtml(item) {
   return `
     <div class="workspace" id="workspace">
-      <div class="inside-tools"><button type="button" class="text-btn" data-close>Close</button></div>
+      <div class="inside-tools">
+        <label class="card-review">
+          <input type="checkbox" data-card-review="${escapeHtml(item.id)}" ${item.review ? "checked" : ""} aria-label="Review ${escapeHtml(item.title || "project")}" />
+          Review
+        </label>
+        <button type="button" class="text-btn" data-close>Close</button>
+      </div>
       <label class="stack-field">Name
         <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
@@ -2150,12 +2152,7 @@ function saveOpenCard() {
   if (notes) applyText(item, notes);
   root.querySelectorAll("[data-check-text]").forEach((field) => applyText(item, field));
   save();
-  const button = root.querySelector("[data-save-card]");
-  if (!button) return;
-  button.textContent = "Saved";
-  window.setTimeout(() => {
-    if (button.isConnected) button.textContent = "Save";
-  }, 1200);
+  closeProject();
 }
 
 function removeCheck(id) {
