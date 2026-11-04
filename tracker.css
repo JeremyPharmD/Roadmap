@@ -283,7 +283,7 @@ main {
 
 .row-face {
   display: grid;
-  grid-template-columns: 36px 32px minmax(0, 1fr);
+  grid-template-columns: 36px 32px minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px 10px;
 }
@@ -1833,7 +1833,7 @@ textarea.field { min-height: 88px; resize: vertical; }
 @media (max-width: 640px) {
   .page-head { flex-wrap: wrap; }
   .page-head .btn { width: 100%; }
-  .work-name { max-width: 16ch; }
+  .delivery { margin-top: 0; }
   .card-top { flex-wrap: wrap; }
   .panel-head { flex-wrap: wrap; }
   .panel-tools { width: 100%; justify-content: flex-end; }
@@ -1917,10 +1917,10 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .work-grid {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px 14px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  max-width: 36rem;
 }
 
 .work-plus {
@@ -1936,12 +1936,13 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-check {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  flex: 0 1 auto;
-  max-width: 100%;
+  gap: 8px;
+  width: 100%;
   min-width: 0;
+  padding: 3px 2px;
+  border-radius: 8px;
 }
 
 .work-check input[type="checkbox"] {
@@ -1953,16 +1954,16 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-name {
-  field-sizing: content;
-  width: auto;
-  min-width: 6ch;
-  max-width: 22ch;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   margin: 0;
   padding: 2px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -2018,6 +2019,7 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-frame h3,
+.summary-frame h3,
 .updates h3,
 .size-section h3 {
   margin: 0 0 8px;
@@ -2029,6 +2031,115 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
+
+.delivery {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: end;
+  min-width: 3.6rem;
+  min-height: 28px;
+  margin: 0 2px 2px 0;
+}
+
+.delivery-face {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.delivery.is-empty .delivery-face { color: var(--muted); font-weight: 700; }
+
+.delivery input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+}
+
+.summary-frame,
+.notes-field { max-width: 34rem; }
+
+.summary-frame { margin-top: 12px; }
+
+.point-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.point {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: 8px;
+}
+
+.point:focus-within { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+.point-mark {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.point-text {
+  field-sizing: content;
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 12ch;
+  max-width: 32rem;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.point-x,
+.point-add {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.point-x { padding: 0 2px; }
+
+.point-add {
+  width: 28px;
+  height: 28px;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.notes-field textarea { width: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
   .drawer { transition: none; }
