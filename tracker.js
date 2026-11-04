@@ -1463,10 +1463,10 @@ function insideHtml(item) {
       ${sizePicker(item)}
       ${tasksHtml(item)}
       <label class="stack-field">Summary
-        <textarea class="field bullet-note" rows="2" maxlength="2000" data-field="summary" aria-label="Summary">${escapeHtml(bulletDraft(item.summary))}</textarea>
+        <textarea class="field bullet-note" rows="1" maxlength="2000" data-field="summary" aria-label="Summary">${escapeHtml(bulletDraft(item.summary))}</textarea>
       </label>
       <label class="stack-field">Notes
-        <textarea class="field bullet-note" rows="3" maxlength="8000" data-field="notes" aria-label="Notes">${escapeHtml(bulletDraft(item.notes))}</textarea>
+        <textarea class="field bullet-note" rows="1" maxlength="8000" data-field="notes" aria-label="Notes">${escapeHtml(bulletDraft(item.notes))}</textarea>
       </label>
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
@@ -1646,6 +1646,7 @@ function render(options = {}) {
     focused?.focus({ preventScroll: true });
     if (focused?.classList.contains("title-rename")) focused.select();
   }
+  fitOpenWriting();
   if (options.reveal) {
     const target = document.querySelector(options.reveal);
     const scroller = target?.closest(".sheet-body, .desk");
@@ -1698,18 +1699,55 @@ function restoreFocus() {
   document.querySelector("[data-add-project]")?.focus();
 }
 
+function fitWriting(field) {
+  if (!(field instanceof HTMLTextAreaElement)) return;
+  field.style.height = "0px";
+  const border = field.offsetHeight - field.clientHeight;
+  field.style.height = `${field.scrollHeight + Math.max(0, border)}px`;
+}
+
+function measureDrawer(drawer) {
+  if (!drawer) return 0;
+  drawer.querySelectorAll("textarea.bullet-note").forEach(fitWriting);
+  const prior = drawer.style.maxHeight;
+  drawer.style.maxHeight = "none";
+  const height = drawer.scrollHeight;
+  drawer.style.maxHeight = prior;
+  return height;
+}
+
+function fitOpenWriting() {
+  const id = state.openId;
+  if (!id) return;
+  const row = document.querySelector(`.row[data-id="${CSS.escape(id)}"]`);
+  const drawer = row?.querySelector(".drawer");
+  if (!drawer || !row.classList.contains("is-open")) {
+    drawer?.querySelectorAll("textarea.bullet-note").forEach(fitWriting);
+    return;
+  }
+  drawer.classList.add("is-sizing");
+  const height = measureDrawer(drawer);
+  if (height) drawer.style.maxHeight = `${height}px`;
+  drawer.offsetHeight;
+  drawer.classList.remove("is-sizing");
+}
+
 function settleOpen(id) {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const row = document.querySelector(`.row[data-id="${CSS.escape(id)}"]`);
+  const drawer = row?.querySelector(".drawer");
+  const reveal = () => {
+    if (state.openId !== id || !row) return;
     state.animateId = null;
-    document.querySelector(`.row[data-id="${CSS.escape(id)}"]`)?.classList.add("is-open");
+    row.classList.add("is-open");
+    const height = measureDrawer(drawer);
+    if (drawer && height) drawer.style.maxHeight = `${height}px`;
+  };
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    reveal();
     return;
   }
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (state.openId !== id) return;
-      state.animateId = null;
-      document.querySelector(`.row[data-id="${CSS.escape(id)}"]`)?.classList.add("is-open");
-    });
+    requestAnimationFrame(reveal);
   });
 }
 
@@ -1745,6 +1783,13 @@ function closeProject() {
   }
   if (closing) return;
   closing = true;
+  const drawer = row.querySelector(".drawer");
+  if (drawer) {
+    const height = Math.ceil(drawer.getBoundingClientRect().height);
+    drawer.style.maxHeight = `${height}px`;
+    drawer.offsetHeight;
+    drawer.style.maxHeight = "0px";
+  }
   row.classList.remove("is-open");
   let done = false;
   const finish = () => {
@@ -3479,7 +3524,10 @@ document.addEventListener("input", (event) => {
   if (pendingConfirm) return;
   if (!item && !event.target.dataset?.recId) return;
   try {
-    if (applyText(item || { brief: {} }, event.target)) save();
+    if (applyText(item || { brief: {} }, event.target)) {
+      save();
+      if (event.target.matches?.("textarea.bullet-note")) fitOpenWriting();
+    }
   } catch (error) {
     setStatus("Could not update the list.", { error: true, sticky: true });
   }

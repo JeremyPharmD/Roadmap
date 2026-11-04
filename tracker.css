@@ -1861,6 +1861,17 @@ textarea.field { min-height: 88px; resize: vertical; }
   transition: max-height 360ms ease;
 }
 
+.drawer.is-sizing { transition: none; }
+
+.drawer textarea.bullet-note {
+  min-height: 0;
+  margin-top: 4px;
+  padding: 6px 10px;
+  overflow: hidden;
+  resize: none;
+  line-height: 1.4;
+}
+
 .row.is-open .drawer { max-height: 2400px; }
 
 .drawer-inner { min-height: 0; }
