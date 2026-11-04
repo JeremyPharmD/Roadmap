@@ -380,19 +380,59 @@ function progressHtml(item) {
   `;
 }
 
-function deliveryLabel(value) {
+function dueParts(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
-  return match ? `${match[2]}-${match[3]}` : "";
+  return match ? { year: match[1], month: match[2], day: match[3] } : { year: "", month: "", day: "" };
+}
+
+function realDate(year, month, day) {
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (!y || m < 1 || m > 12 || d < 1 || d > 31) return "";
+  const parsed = new Date(Date.UTC(y, m - 1, d));
+  if (parsed.getUTCFullYear() !== y || parsed.getUTCMonth() !== m - 1 || parsed.getUTCDate() !== d) return "";
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 function deliveryHtml(item) {
-  const label = deliveryLabel(item.targetDate);
+  const due = dueParts(item.targetDate);
   return `
-    <label class="delivery${label ? "" : " is-empty"}">
-      <span class="delivery-face">${escapeHtml(label || "MM-DD")}</span>
-      <input type="date" data-delivery="${escapeHtml(item.id)}" value="${escapeHtml(item.targetDate || "")}" aria-label="Delivery date for ${escapeHtml(item.title || "project")}" />
-    </label>
+    <div class="delivery${due.month ? "" : " is-empty"}">
+      <input class="due-part" inputmode="numeric" maxlength="2" size="2" data-due-month="${escapeHtml(item.id)}" value="${escapeHtml(due.month)}" placeholder="MM" aria-label="Due month" />
+      <span class="due-dash" aria-hidden="true">–</span>
+      <input class="due-part" inputmode="numeric" maxlength="2" size="2" data-due-day="${escapeHtml(item.id)}" value="${escapeHtml(due.day)}" placeholder="DD" aria-label="Due day" />
+    </div>
   `;
+}
+
+function commitDue(input) {
+  const root = input.closest(".delivery");
+  const id = input.dataset.dueMonth || input.dataset.dueDay;
+  const item = itemById(id);
+  if (!item || !root) return;
+  const monthField = root.querySelector("[data-due-month]");
+  const dayField = root.querySelector("[data-due-day]");
+  const month = monthField.value.replace(/\D/g, "").slice(0, 2);
+  const day = dayField.value.replace(/\D/g, "").slice(0, 2);
+  if (monthField.value !== month) monthField.value = month;
+  if (dayField.value !== day) dayField.value = day;
+  root.classList.toggle("is-empty", !month && !day);
+  if (!month && !day) {
+    if (item.targetDate) {
+      item.targetDate = "";
+      touch(item);
+      save();
+    }
+    return;
+  }
+  if (month.length < 2 || day.length < 2) return;
+  const year = dueParts(item.targetDate).year || String(new Date().getFullYear());
+  const iso = realDate(year, month, day);
+  if (!iso || iso === item.targetDate) return;
+  item.targetDate = iso;
+  touch(item);
+  save();
 }
 
 function effortControl(item) {
@@ -1478,10 +1518,8 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
-      ${summaryHtml(item)}
-      <label class="stack-field notes-field">Notes
-        <textarea class="field bullet-note" rows="1" maxlength="8000" data-field="notes" aria-label="Notes">${escapeHtml(bulletDraft(item.notes))}</textarea>
-      </label>
+      ${linesSection("Summary", "summary", item.summary, "Add a point")}
+      ${linesSection("Notes", "notes", item.notes, "Add a note")}
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
   `;
@@ -2169,21 +2207,17 @@ function updateText(value) {
     .join("\n");
 }
 
-let summaryBlank = null;
+let lineBlank = null;
 
-function summaryPointText(value) {
-  return String(value || "").replace(/^[\s]*[•\-*]\s?/, "").trim();
-}
-
-function summaryPoints(text) {
+function linePoints(text) {
   if (!String(text || "").trim()) return [];
   return String(text)
     .split("\n")
-    .map(summaryPointText)
+    .map((line) => line.replace(/^[\s]*[•\-*]\s?/, "").trim())
     .filter(Boolean);
 }
 
-function summaryText(lines) {
+function lineText(lines) {
   return lines
     .map((line) => line.trim())
     .filter(Boolean)
@@ -2191,67 +2225,85 @@ function summaryText(lines) {
     .join("\n");
 }
 
-function displayedSummary(item) {
-  const lines = summaryPoints(item.summary);
-  const blankAt = summaryBlank;
-  summaryBlank = null;
-  if (typeof blankAt === "number") lines.splice(Math.max(0, Math.min(blankAt, lines.length)), 0, "");
-  else if (!lines.length) lines.push("");
+function lineAttr(kind) {
+  return kind === "notes" ? "note" : "summary";
+}
+
+function displayedLines(text, kind) {
+  const lines = linePoints(text);
+  if (lineBlank && lineBlank.kind === kind) {
+    const at = lineBlank.index;
+    lineBlank = null;
+    lines.splice(Math.max(0, Math.min(at, lines.length)), 0, "");
+  }
+  if (!lines.length || lines[lines.length - 1].trim()) lines.push("");
   return lines;
 }
 
-function summaryHtml(item) {
-  const rows = displayedSummary(item)
+function linesSection(title, kind, text, placeholder) {
+  const attr = lineAttr(kind);
+  const rows = displayedLines(text, kind)
     .map(
       (line, index) => `
-        <li class="point">
-          <span class="point-mark" aria-hidden="true"></span>
-          <input class="point-text" type="text" maxlength="500" value="${escapeHtml(line)}" data-summary-index="${index}" placeholder="Add a point" aria-label="Summary point ${index + 1}" />
-          <button type="button" class="point-x" data-remove-summary="${index}" aria-label="Delete summary point ${index + 1}">×</button>
+        <li class="line">
+          <span class="line-mark" aria-hidden="true"></span>
+          <input class="line-text" type="text" maxlength="500" value="${escapeHtml(line)}" data-${attr}-index="${index}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder)}" />
+          <button type="button" class="line-x" data-remove-${attr}="${index}" aria-label="Delete ${escapeHtml(placeholder.toLowerCase())}" tabindex="-1">×</button>
         </li>
       `,
     )
     .join("");
   return `
-    <section class="summary-frame">
-      <h3>Summary</h3>
-      <ul class="point-list">${rows}</ul>
-      <button type="button" class="point-add" data-add-summary aria-label="Add a summary point">+</button>
+    <section class="lines">
+      <h3>${escapeHtml(title)}</h3>
+      <ul class="line-list">${rows}</ul>
     </section>
   `;
 }
 
-function collectSummary(root) {
-  return [...root.querySelectorAll("[data-summary-index]")].map((field) => field.value);
-}
-
-function writeSummary(item, lines) {
-  item.summary = summaryText(lines);
+function writeLines(item, kind, lines) {
+  item[kind] = lineText(lines);
   touch(item);
 }
 
-function addSummaryPoint(afterIndex) {
-  const item = itemById(state.openId);
-  const root = document.querySelector(".row.is-open .workspace");
-  if (!item || !root) return;
-  const lines = collectSummary(root).map((line) => line.trim());
-  writeSummary(item, lines);
-  const focusAt = afterIndex == null ? summaryPoints(item.summary).length : lines.slice(0, afterIndex + 1).filter(Boolean).length;
-  summaryBlank = focusAt;
-  save();
-  render({ focus: `[data-summary-index="${focusAt}"]` });
+function ensureTrailingLine(root, kind) {
+  const attr = lineAttr(kind);
+  const fields = [...root.querySelectorAll(`[data-${attr}-index]`)];
+  if (!fields.length || fields.some((field) => !field.value.trim())) return;
+  const list = fields.at(-1).closest(".line-list");
+  if (!list) return;
+  const index = fields.length;
+  const placeholder = kind === "notes" ? "Add a note" : "Add a point";
+  const row = document.createElement("li");
+  row.className = "line";
+  row.innerHTML = `<span class="line-mark" aria-hidden="true"></span><input class="line-text" type="text" maxlength="500" data-${attr}-index="${index}" placeholder="${placeholder}" aria-label="${placeholder}" /><button type="button" class="line-x" data-remove-${attr}="${index}" aria-label="Delete ${placeholder.toLowerCase()}" tabindex="-1">×</button>`;
+  list.appendChild(row);
 }
 
-function removeSummaryPoint(index) {
+function addLine(kind, afterIndex) {
   const item = itemById(state.openId);
   const root = document.querySelector(".row.is-open .workspace");
   if (!item || !root) return;
-  const lines = collectSummary(root);
+  const attr = lineAttr(kind);
+  const lines = [...root.querySelectorAll(`[data-${attr}-index]`)].map((field) => field.value.trim());
+  writeLines(item, kind, lines);
+  const focusAt = afterIndex == null ? linePoints(item[kind]).length : lines.slice(0, afterIndex + 1).filter(Boolean).length;
+  lineBlank = { kind, index: focusAt };
+  save();
+  render({ focus: `[data-${attr}-index="${focusAt}"]` });
+}
+
+function removeLine(kind, index) {
+  const item = itemById(state.openId);
+  const root = document.querySelector(".row.is-open .workspace");
+  if (!item || !root) return;
+  const attr = lineAttr(kind);
+  const lines = [...root.querySelectorAll(`[data-${attr}-index]`)].map((field) => field.value);
   lines.splice(Number(index), 1);
-  writeSummary(item, lines);
+  writeLines(item, kind, lines);
   save();
   const next = Math.max(0, Math.min(Number(index), Math.max(0, lines.filter((line) => line.trim()).length)));
-  render({ focus: `[data-summary-index="${next}"]` });
+  render({ focus: `[data-${attr}-index="${next}"]` });
 }
 
 function bulletDraft(text) {
@@ -2300,8 +2352,9 @@ function saveOpenCard() {
   const title = root.querySelector("[data-field='title']");
   const notes = root.querySelector("[data-field='notes']");
   if (title) applyText(item, title);
-  if (root.querySelector("[data-summary-index]")) writeSummary(item, collectSummary(root));
-  if (notes) applyText(item, notes);
+  if (root.querySelector("[data-summary-index]")) writeLines(item, "summary", [...root.querySelectorAll("[data-summary-index]")].map((field) => field.value));
+  if (root.querySelector("[data-note-index]")) writeLines(item, "notes", [...root.querySelectorAll("[data-note-index]")].map((field) => field.value));
+  if (notes && notes.tagName === "TEXTAREA") applyText(item, notes);
   root.querySelectorAll("[data-check-text]").forEach((field) => applyText(item, field));
   save();
   closeProject();
@@ -3147,13 +3200,14 @@ document.addEventListener("click", (event) => {
       addCheck();
       return;
     }
-    if (event.target.closest("[data-add-summary]")) {
-      addSummaryPoint();
-      return;
-    }
     const removeSummary = event.target.closest("[data-remove-summary]");
     if (removeSummary) {
-      removeSummaryPoint(removeSummary.dataset.removeSummary);
+      removeLine("summary", removeSummary.dataset.removeSummary);
+      return;
+    }
+    const removeNote = event.target.closest("[data-remove-note]");
+    if (removeNote) {
+      removeLine("notes", removeNote.dataset.removeNote);
       return;
     }
     if (event.target.closest("[data-add-journal]")) {
@@ -3430,18 +3484,6 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
-  if (event.target.dataset?.delivery) {
-    const item = itemById(event.target.dataset.delivery);
-    if (!item) return;
-    item.targetDate = event.target.value;
-    touch(item);
-    save();
-    const face = event.target.closest(".delivery")?.querySelector(".delivery-face");
-    const label = deliveryLabel(item.targetDate);
-    if (face) face.textContent = label || "MM-DD";
-    event.target.closest(".delivery")?.classList.toggle("is-empty", !label);
-    return;
-  }
   const reviewBox = event.target.closest("[data-card-review]");
   if (reviewBox) {
     const item = itemById(reviewBox.dataset.cardReview);
@@ -3644,11 +3686,23 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
-  if (event.target.dataset?.summaryIndex != null) {
+  if (event.target.dataset?.dueMonth != null || event.target.dataset?.dueDay != null) {
+    const field = event.target;
+    const digits = field.value.replace(/\D/g, "").slice(0, 2);
+    const advance = field.dataset.dueMonth != null && digits.length === 2 && field.value.replace(/\D/g, "").length >= 2;
+    if (field.value !== digits) field.value = digits;
+    commitDue(field);
+    if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
+    return;
+  }
+  if (event.target.dataset?.summaryIndex != null || event.target.dataset?.noteIndex != null) {
     const item = itemById(state.openId);
     const root = event.target.closest(".workspace");
     if (!item || !root) return;
-    writeSummary(item, collectSummary(root));
+    const kind = event.target.dataset.summaryIndex != null ? "summary" : "notes";
+    const attr = lineAttr(kind);
+    writeLines(item, kind, [...root.querySelectorAll(`[data-${attr}-index]`)].map((field) => field.value));
+    ensureTrailingLine(root, kind);
     save();
     return;
   }
@@ -3667,6 +3721,13 @@ document.addEventListener("input", (event) => {
   } catch (error) {
     setStatus("Could not update the list.", { error: true, sticky: true });
   }
+});
+
+document.addEventListener("focusout", (event) => {
+  if (event.target.dataset?.dueMonth == null && event.target.dataset?.dueDay == null) return;
+  const field = event.target;
+  if (/^\d$/.test(field.value)) field.value = `0${field.value}`;
+  commitDue(field);
 });
 
 document.addEventListener("submit", (event) => {
@@ -3775,10 +3836,18 @@ document.addEventListener("keydown", (event) => {
     addCheck();
     return;
   }
-  if (event.target.dataset?.summaryIndex != null && (event.key === "Enter" || (event.key === "Backspace" && event.target.value === ""))) {
+  if ((event.target.dataset?.summaryIndex != null || event.target.dataset?.noteIndex != null) && (event.key === "Enter" || (event.key === "Backspace" && event.target.value === ""))) {
     event.preventDefault();
-    if (event.key === "Enter") addSummaryPoint(Number(event.target.dataset.summaryIndex));
-    else if (document.querySelectorAll("[data-summary-index]").length > 1) removeSummaryPoint(event.target.dataset.summaryIndex);
+    const kind = event.target.dataset.summaryIndex != null ? "summary" : "notes";
+    const attr = lineAttr(kind);
+    if (event.key === "Enter") addLine(kind, Number(event.target.dataset.summaryIndex ?? event.target.dataset.noteIndex));
+    else if (document.querySelectorAll(`[data-${attr}-index]`).length > 1) removeLine(kind, event.target.dataset.summaryIndex ?? event.target.dataset.noteIndex);
+    return;
+  }
+  if ((event.target.dataset?.dueMonth != null || event.target.dataset?.dueDay != null) && event.key === "Enter") {
+    event.preventDefault();
+    if (event.target.dataset.dueMonth != null) event.target.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
+    else event.target.blur();
     return;
   }
   if (event.key === "Enter" && !event.shiftKey && (event.target.dataset?.field === "summary" || event.target.dataset?.field === "notes")) {
