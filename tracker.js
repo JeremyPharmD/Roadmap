@@ -1463,7 +1463,7 @@ function insideHtml(item) {
       ${sizePicker(item)}
       ${tasksHtml(item)}
       <label class="stack-field">Summary
-        <textarea class="field bullet-note" rows="1" maxlength="2000" data-field="summary" aria-label="Summary">${escapeHtml(bulletDraft(item.summary))}</textarea>
+        <textarea class="field summary-note" rows="1" maxlength="2000" data-field="summary" aria-label="Summary" placeholder="A short summary">${escapeHtml(summaryDraft(item.summary))}</textarea>
       </label>
       <label class="stack-field">Notes
         <textarea class="field bullet-note" rows="1" maxlength="8000" data-field="notes" aria-label="Notes">${escapeHtml(bulletDraft(item.notes))}</textarea>
@@ -1708,7 +1708,7 @@ function fitWriting(field) {
 
 function measureDrawer(drawer) {
   if (!drawer) return 0;
-  drawer.querySelectorAll("textarea.bullet-note").forEach(fitWriting);
+  drawer.querySelectorAll("textarea.bullet-note, textarea.summary-note").forEach(fitWriting);
   const prior = drawer.style.maxHeight;
   drawer.style.maxHeight = "none";
   const height = drawer.scrollHeight;
@@ -1722,7 +1722,7 @@ function fitOpenWriting() {
   const row = document.querySelector(`.row[data-id="${CSS.escape(id)}"]`);
   const drawer = row?.querySelector(".drawer");
   if (!drawer || !row.classList.contains("is-open")) {
-    drawer?.querySelectorAll("textarea.bullet-note").forEach(fitWriting);
+    drawer?.querySelectorAll("textarea.bullet-note, textarea.summary-note").forEach(fitWriting);
     return;
   }
   drawer.classList.add("is-sizing");
@@ -2153,6 +2153,33 @@ function updateText(value) {
     .map((line) => line.replace(/^[\s•]+/, "").trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function summaryDraft(text) {
+  return String(text || "")
+    .split("\n")
+    .map((line) => line.replace(/^[\s]*[•\-*]\s?/, "").trimEnd())
+    .join("\n")
+    .trim();
+}
+
+function plainSummary(field) {
+  const start = field.selectionStart ?? field.value.length;
+  const lines = field.value.split("\n");
+  let pos = 0;
+  let caret = start;
+  const nextLines = lines.map((line) => {
+    const rewritten = line.replace(/^[\s]*[•\-*]\s?/, "");
+    const removed = line.length - rewritten.length;
+    if (removed && start > pos) caret -= Math.min(removed, start - pos);
+    pos += line.length + 1;
+    return rewritten;
+  });
+  const next = nextLines.join("\n").replace(/\n{3,}/g, "\n\n");
+  if (next === field.value) return;
+  field.value = next;
+  const point = Math.max(0, Math.min(next.length, caret));
+  field.selectionStart = field.selectionEnd = point;
 }
 
 function bulletDraft(text) {
@@ -2704,9 +2731,17 @@ function applyText(item, target) {
     syncCard(item);
     return true;
   }
-  if (field === "summary" || field === "notes") {
+  if (field === "summary") {
+    plainSummary(target);
+    const shown = target.value.slice(0, 2000);
+    const stored = shown.replace(/[ \t]+$/g, "").replace(/^\s+/, "");
+    item.summary = stored.trim() ? stored : "";
+    touch(item);
+    return true;
+  }
+  if (field === "notes") {
     bulletField(target);
-    const limit = field === "summary" ? 2000 : 8000;
+    const limit = 8000;
     const shown = target.value.slice(0, limit);
     const stored = updateText(shown) ? shown : "";
     if (!stored && target.value !== "• ") {
@@ -3526,7 +3561,7 @@ document.addEventListener("input", (event) => {
   try {
     if (applyText(item || { brief: {} }, event.target)) {
       save();
-      if (event.target.matches?.("textarea.bullet-note")) fitOpenWriting();
+      if (event.target.matches?.("textarea.bullet-note, textarea.summary-note")) fitOpenWriting();
     }
   } catch (error) {
     setStatus("Could not update the list.", { error: true, sticky: true });
@@ -3639,7 +3674,7 @@ document.addEventListener("keydown", (event) => {
     addCheck();
     return;
   }
-  if (event.key === "Enter" && !event.shiftKey && (event.target.dataset?.field === "summary" || event.target.dataset?.field === "notes")) {
+  if (event.key === "Enter" && !event.shiftKey && event.target.dataset?.field === "notes") {
     event.preventDefault();
     const field = event.target;
     const start = field.selectionStart;
