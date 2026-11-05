@@ -188,6 +188,22 @@ test("a card can be marked for review without changing its tasks", () => {
   assert.equal(model.progressOf(item).fraction, "0/1");
 });
 
+test("a work item keeps a decision mark and its context", () => {
+  const item = model.normalizeItem({
+    id: "d",
+    title: "One",
+    checklist: [
+      { text: "Call the lab", done: true, type: "decision", note: "Waiting on the form" },
+      { text: "Order stock", done: false },
+    ],
+  });
+  assert.equal(item.checklist[0].type, "decision");
+  assert.equal(item.checklist[0].note, "Waiting on the form");
+  assert.equal(item.checklist[1].type, "action");
+  assert.equal(item.checklist[1].note, "");
+  assert.equal(model.progressOf(item).percent, 50);
+});
+
 test("checklist percent counts checked lines only", () => {
   const item = model.normalizeItem({
     id: "a",

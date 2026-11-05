@@ -1340,10 +1340,17 @@ function tasksHtml(item) {
   const rows = item.checklist
     .map(
       (entry) => `
-        <div class="work-check${entry.done ? " is-done" : ""}">
-          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
-          <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
-          <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
+        <div class="work-item${entry.done ? " is-done" : ""}${entry.type === "decision" ? " is-decision" : ""}">
+          <div class="work-check">
+            <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
+            <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
+            <label class="decision">
+              <input type="checkbox" data-decision="${escapeHtml(entry.id)}" ${entry.type === "decision" ? "checked" : ""} aria-label="Decision needed for ${escapeHtml(entry.text || "work item")}" />
+              Decision needed
+            </label>
+            <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
+          </div>
+          <input class="work-context" type="text" maxlength="500" value="${escapeHtml(entry.note || "")}" data-check-note="${escapeHtml(entry.id)}" placeholder="Add context" aria-label="Context for ${escapeHtml(entry.text || "work item")}" />
         </div>
       `,
     )
@@ -1519,7 +1526,9 @@ function insideHtml(item) {
       ${sizePicker(item)}
       ${tasksHtml(item)}
       ${linesSection("Summary", "summary", item.summary, "Add a point")}
-      ${linesSection("Notes", "notes", item.notes, "Add a note")}
+      <label class="stack-field history-field">History
+        <textarea class="field history-note" rows="1" maxlength="8000" data-field="notes" placeholder="What happened" aria-label="History">${escapeHtml(item.notes || "")}</textarea>
+      </label>
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
   `;
@@ -1760,7 +1769,7 @@ function fitWriting(field) {
 
 function measureDrawer(drawer) {
   if (!drawer) return 0;
-  drawer.querySelectorAll("textarea.bullet-note").forEach(fitWriting);
+  drawer.querySelectorAll("textarea.bullet-note, textarea.history-note").forEach(fitWriting);
   const prior = drawer.style.maxHeight;
   drawer.style.maxHeight = "none";
   const height = drawer.scrollHeight;
@@ -1774,7 +1783,7 @@ function fitOpenWriting() {
   const row = document.querySelector(`.row[data-id="${CSS.escape(id)}"]`);
   const drawer = row?.querySelector(".drawer");
   if (!drawer || !row.classList.contains("is-open")) {
-    drawer?.querySelectorAll("textarea.bullet-note").forEach(fitWriting);
+    drawer?.querySelectorAll("textarea.bullet-note, textarea.history-note").forEach(fitWriting);
     return;
   }
   drawer.classList.add("is-sizing");
@@ -2864,9 +2873,14 @@ function applyText(item, target) {
     syncCard(item);
     return true;
   }
-  if (field === "summary" || field === "notes") {
+  if (field === "notes") {
+    item.notes = target.value.slice(0, 8000);
+    touch(item);
+    return true;
+  }
+  if (field === "summary") {
     bulletField(target);
-    const limit = field === "summary" ? 2000 : 8000;
+    const limit = 2000;
     const shown = target.value.slice(0, limit);
     const stored = updateText(shown) ? shown : "";
     if (!stored && target.value !== "• ") {
@@ -2893,6 +2907,13 @@ function applyText(item, target) {
     const entry = item.checklist.find((line) => line.id === target.dataset.checkText);
     if (!entry) return false;
     entry.text = target.value.slice(0, 2000);
+    touch(item);
+    return true;
+  }
+  if (target.dataset.checkNote) {
+    const entry = item.checklist.find((line) => line.id === target.dataset.checkNote);
+    if (!entry) return false;
+    entry.note = target.value.slice(0, 500);
     touch(item);
     return true;
   }
@@ -3496,6 +3517,16 @@ document.addEventListener("change", (event) => {
   }
   const item = state.openId ? itemById(state.openId) : null;
   try {
+    const decision = event.target.closest("[data-decision]");
+    if (decision && item) {
+      const entry = item.checklist.find((line) => line.id === decision.dataset.decision);
+      if (!entry) return;
+      entry.type = decision.checked ? "decision" : "action";
+      touch(item);
+      save();
+      decision.closest(".work-item")?.classList.toggle("is-decision", decision.checked);
+      return;
+    }
     const box = event.target.closest("[data-check-id]");
     if (box && item) {
       const entry = item.checklist.find((line) => line.id === box.dataset.checkId);
@@ -3716,7 +3747,7 @@ document.addEventListener("input", (event) => {
   try {
     if (applyText(item || { brief: {} }, event.target)) {
       save();
-      if (event.target.matches?.("textarea.bullet-note")) fitOpenWriting();
+      if (event.target.matches?.("textarea.bullet-note, textarea.history-note")) fitOpenWriting();
     }
   } catch (error) {
     setStatus("Could not update the list.", { error: true, sticky: true });
@@ -3850,7 +3881,7 @@ document.addEventListener("keydown", (event) => {
     else event.target.blur();
     return;
   }
-  if (event.key === "Enter" && !event.shiftKey && (event.target.dataset?.field === "summary" || event.target.dataset?.field === "notes")) {
+  if (event.key === "Enter" && !event.shiftKey && event.target.dataset?.field === "summary") {
     event.preventDefault();
     const field = event.target;
     const start = field.selectionStart;

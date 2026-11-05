@@ -155,10 +155,11 @@ function normalizeCheck(raw) {
     done: Boolean(raw.done),
     type: checkType(raw.type),
     due: cleanDate(typeof raw.due === "string" ? raw.due : ""),
-journalId: cleanLine(raw.journalId, 80),
-      workstream: cleanLine(raw.workstream, 80),
-      horizon: HORIZONS.some((entry) => entry.id === raw.horizon) ? raw.horizon : "",
-      answer,
+    journalId: cleanLine(raw.journalId, 80),
+    workstream: cleanLine(raw.workstream, 80),
+    horizon: HORIZONS.some((entry) => entry.id === raw.horizon) ? raw.horizon : "",
+    answer,
+    note: cleanLine(raw.note, 500),
   };
 }
 
