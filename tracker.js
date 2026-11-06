@@ -5,6 +5,8 @@ const state = {
   recommendations: [],
   settings: { baselineDate: "" },
   openId: null,
+  reviewWeek: model.weekStart(toLocalInput().slice(0, 10)),
+  guidedDetails: new Set(),
   view: "projects",
   checkFilter: "open",
   expandedJournal: new Set(),
@@ -467,6 +469,7 @@ function rowFace(item, index) {
             <span class="title${item.title ? "" : " is-placeholder"}">${escapeHtml(title)}</span>
           </span>
           <span class="progress-slot">${progressHtml(item)}</span>
+          <span class="weekly-preview">${escapeHtml(weekEntries(item)[0] ? preview(weekEntries(item)[0]) : "No update this week")}${item.reviewedWeeks.includes(state.reviewWeek) ? " · Reviewed" : ""}</span>
         </button>
       </div>
       ${deliveryHtml(item)}
@@ -521,8 +524,9 @@ function renderList() {
           <h2>Project roadmap</h2>
           <p class="intro">Drag a card to change the order. This order is the priority.</p>
         </div>
-        <button type="button" class="btn primary" data-add-project>+ New project</button>
+        <div class="inline-actions"><button type="button" class="btn secondary" data-start-review ${active.length ? "" : "disabled"}>Start weekly review →</button><button type="button" class="btn primary" data-add-project>+ New project</button></div>
       </header>
+      ${weekToolbar()}
       <div id="list">${list}</div>
       ${archivedHtml}
     </div>
@@ -1503,6 +1507,83 @@ function statusUpdatesHtml(item) {
   `;
 }
 
+function weekEntries(item) {
+  return item.journal.filter((entry) => model.weekStart(toLocalInput(entry.createdAt).slice(0, 10)) === state.reviewWeek)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function weekToolbar() {
+  const count = activeItems().filter((item) => item.reviewedWeeks.includes(state.reviewWeek)).length;
+  return `<div class="week-toolbar"><label>Week of <input type="date" data-review-week value="${state.reviewWeek}" aria-label="Review week" /></label><span>${count} of ${activeItems().length} reviewed</span></div>`;
+}
+
+function journalEntryHtml(entry) {
+  if (state.editingJournalId === entry.id) return `<article class="entry" data-journal-id="${escapeHtml(entry.id)}">
+    <label class="stack-field">Title<input class="field" maxlength="200" data-edit-journal-title="${escapeHtml(entry.id)}" value="${escapeHtml(entry.title)}" /></label>
+    <label class="stack-field">Update<textarea class="field" maxlength="8000" data-edit-journal-body="${escapeHtml(entry.id)}">${escapeHtml(entry.body)}</textarea></label>
+    <label class="stack-field">Decision<textarea class="field" maxlength="2000" data-edit-journal-decision>${escapeHtml(entry.decision || "")}</textarea></label>
+    <div class="inline-actions"><button type="button" class="btn primary" data-save-journal="${escapeHtml(entry.id)}">Save update</button><button type="button" class="btn secondary" data-cancel-journal>Cancel</button></div></article>`;
+  return `<article class="entry" data-journal-id="${escapeHtml(entry.id)}"><div class="entry-meta"><time datetime="${escapeHtml(entry.createdAt)}">${escapeHtml(formatStamp(entry.createdAt))}</time><button type="button" class="text-btn" data-edit-journal="${escapeHtml(entry.id)}">Edit</button><button type="button" class="text-btn danger" data-delete-journal="${escapeHtml(entry.id)}">Delete</button></div>
+    ${entry.title ? `<h4>${escapeHtml(entry.title)}</h4>` : ""}${entry.body ? `<p class="entry-body">${escapeHtml(entry.body)}</p>` : ""}
+    ${entry.decision ? `<p class="entry-body"><strong>Decision</strong> · ${escapeHtml(entry.decision)}</p>` : ""}
+    ${entry.nextStep || entry.owner || entry.due ? `<p class="entry-body commitment-snapshot"><strong>Next commitment at this update</strong><br>${escapeHtml([entry.nextStep, entry.owner, entry.due].filter(Boolean).join(" · "))}</p>` : ""}</article>`;
+}
+
+function guidedUpdatesHtml(item) {
+  const entries = weekEntries(item);
+  const older = item.journal.filter((entry) => !entries.includes(entry)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const composer = state.updateComposerOpen ? `<section class="update-compose">
+    <label class="stack-field">Date and time<input class="field" type="datetime-local" data-journal-when value="${escapeHtml(state.journalComposer.when)}" /></label>
+    <label class="stack-field">What changed?<textarea class="field" rows="3" maxlength="8000" data-journal-body placeholder="Progress, blockers, or the outcome of a conversation…">${escapeHtml(state.journalComposer.body)}</textarea></label>
+    <label class="stack-field">Decision, if any<textarea class="field" rows="2" maxlength="2000" data-journal-decision>${escapeHtml(state.journalComposer.decision || "")}</textarea></label>
+    <p class="hint">The next step, owner, and due date below are captured with this update.</p>
+    <div class="inline-actions"><button type="button" class="btn primary" data-add-journal>Save dated update</button><button type="button" class="btn secondary" data-cancel-update>Cancel</button></div></section>` : `<button type="button" class="btn secondary" data-add-update>+ Add this week’s update</button>`;
+  return `<section class="guided-updates"><div class="section-heading"><h3>This week’s updates</h3>${!entries.length ? '<span class="muted">No update recorded for this week</span>' : ""}</div>${composer}${entries.map(journalEntryHtml).join("")}</section>
+    <details class="guided-detail" data-guided-detail="history" ${state.guidedDetails.has("history") ? "open" : ""}><summary>Dated history <span>${older.length} other ${older.length === 1 ? "entry" : "entries"}</span></summary>${older.map(journalEntryHtml).join("") || '<p class="hint">Earlier and later dated updates will appear here.</p>'}</details>`;
+}
+
+function guidedProjectHtml(item) {
+  const active = activeItems(), index = active.findIndex((entry) => entry.id === item.id);
+  const reviewed = item.reviewedWeeks.includes(state.reviewWeek);
+  const progress = model.progressOf(item);
+  const detail = (key) => state.guidedDetails.has(key) ? "open" : "";
+  return `<div class="guided-project workspace" id="workspace" style="--accent:${escapeHtml(item.color)}">
+    <div class="guided-top"><button type="button" class="text-btn" data-close>← Ranked roadmap</button><span>${index < 0 ? "Archived project" : `Project ${index + 1} of ${active.length} · Priority order`}</span></div>
+    ${weekToolbar()}
+    <header class="guided-heading"><div><p class="guided-kicker">${index < 0 ? "ARCHIVED" : `PRIORITY ${index + 1}`}${item.size ? ` · SIZE ${effortShort(item)}` : ""}</p><h2 id="workspace-title" tabindex="-1">${escapeHtml(item.title || "New project")}</h2></div>${stageBadge(item)}</header>
+    ${guidedUpdatesHtml(item)}
+    <section class="guided-commitment"><h3>Next commitment</h3><label class="stack-field">Next step<input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep)}" placeholder="What happens next?" /></label><div class="commitment-fields"><label class="stack-field">Owner<input class="field" maxlength="120" data-field="owner" value="${escapeHtml(item.owner)}" placeholder="Who will follow up?" /></label><label class="stack-field">Due date<input class="field" type="date" data-field="targetDate" value="${escapeHtml(item.targetDate)}" /></label></div></section>
+    <details class="guided-detail" data-guided-detail="work" ${detail("work")}><summary>Work items <span>${escapeHtml(progress.fraction)} complete</span></summary>${tasksHtml(item)}</details>
+    <details class="guided-detail" data-guided-detail="background" ${detail("background")}><summary>Background & project settings</summary><label class="stack-field">Project name<input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" /></label>${sizePicker(item)}${linesSection("Summary", "summary", item.summary, "Add a point")}${linesSection("Undated notes", "notes", item.notes, "Add a note")}<label class="card-review"><input type="checkbox" data-card-review="${escapeHtml(item.id)}" ${item.review ? "checked" : ""} />Flag for attention</label><p class="hint">Existing summary and notes stay as background; they have not been assigned invented dates.</p></details>
+    <footer class="guided-footer"><label class="card-review"><input type="checkbox" data-week-reviewed ${reviewed ? "checked" : ""} />Reviewed this week</label><div class="inline-actions"><button type="button" class="btn secondary" data-guide-move="-1" ${index <= 0 ? "disabled" : ""}>← Previous</button><button type="button" class="btn secondary" data-guide-move="1" ${index < 0 || index >= active.length - 1 ? "disabled" : ""}>Next →</button><button type="button" class="btn primary" data-reviewed-next>${index >= active.length - 1 || index < 0 ? "Reviewed & finish" : "Reviewed & next →"}</button></div></footer>
+  </div>`;
+}
+
+function savePendingUpdate() {
+  if (state.editingJournalId && !saveJournalEdit(state.editingJournalId)) return false;
+  const draft = state.journalComposer;
+  if (state.updateComposerOpen && (draft.title?.trim() || updateText(draft.body) || draft.decision?.trim())) return addJournal() === true;
+  return true;
+}
+
+function setWeekReviewed(checked) {
+  const item = itemById(state.openId);
+  if (!item) return;
+  item.reviewedWeeks = item.reviewedWeeks.filter((week) => week !== state.reviewWeek);
+  if (checked) item.reviewedWeeks.push(state.reviewWeek);
+  touch(item);
+  save();
+}
+
+function navigateGuide(delta, reviewed) {
+  if (!savePendingUpdate()) return;
+  if (reviewed) setWeekReviewed(true);
+  const active = activeItems(), index = active.findIndex((item) => item.id === state.openId);
+  const next = active[index + delta];
+  if (next) openProject(next.id);
+  else if (reviewed) { closeProject(); setStatus("Weekly review saved."); }
+}
+
 function insideHtml(item) {
   return `
     <div class="workspace" id="workspace">
@@ -1671,6 +1752,10 @@ function renderRecommendations() {
 }
 
 function renderBoard() {
+  if (state.openId && itemById(state.openId) && state.view === "projects") {
+    app.innerHTML = guidedProjectHtml(itemById(state.openId));
+    return;
+  }
   if (state.view === "roadmap") app.innerHTML = renderRoadmap();
   else if (state.view === "recommendations") app.innerHTML = renderRecommendations();
   else app.innerHTML = renderList();
@@ -1809,22 +1894,26 @@ function openProject(id) {
   focusPanel = false;
   const opening = state.openId !== id;
   state.openId = id;
-  if (opening) state.animateId = id;
+  state.animateId = null;
   state.editingJournalId = null;
   state.renamingId = null;
   state.panelTab = "overview";
   state.editingFields = false;
   state.updateComposerOpen = false;
+  state.journalComposer = { when: "", title: "", body: "", decision: "" };
+  state.guidedDetails.clear();
   state.menuOpen = false;
   state.effortMenuId = null;
   state.draft = null;
   state.blockForm = null;
   state.blockError = "";
   render();
-  if (opening) settleOpen(id);
+  document.querySelector("#workspace-title")?.focus({ preventScroll: true });
+  window.scrollTo(0, 0);
 }
 
 function closeProject() {
+  if (!savePendingUpdate()) return;
   const id = state.openId;
   const row = id ? document.querySelector(`.row[data-id="${CSS.escape(id)}"]`) : null;
   if (!row) {
@@ -1878,6 +1967,7 @@ function addProject() {
   state.view = "projects";
   state.panelTab = "overview";
   state.editingFields = true;
+  state.guidedDetails = new Set(["background"]);
   state.updateComposerOpen = false;
   state.menuOpen = false;
   state.effortMenuId = null;
@@ -2282,7 +2372,7 @@ function ensureTrailingLine(root, kind) {
 
 function addLine(kind, afterIndex) {
   const item = itemById(state.openId);
-  const root = document.querySelector(".row.is-open .workspace");
+  const root = document.querySelector("#workspace");
   if (!item || !root) return;
   const attr = lineAttr(kind);
   const lines = [...root.querySelectorAll(`[data-${attr}-index]`)].map((field) => field.value.trim());
@@ -2295,7 +2385,7 @@ function addLine(kind, afterIndex) {
 
 function removeLine(kind, index) {
   const item = itemById(state.openId);
-  const root = document.querySelector(".row.is-open .workspace");
+  const root = document.querySelector("#workspace");
   if (!item || !root) return;
   const attr = lineAttr(kind);
   const lines = [...root.querySelectorAll(`[data-${attr}-index]`)].map((field) => field.value);
@@ -2347,7 +2437,7 @@ function bulletField(field) {
 
 function saveOpenCard() {
   const item = itemById(state.openId);
-  const root = item ? document.querySelector(`.row[data-id="${CSS.escape(item.id)}"] .workspace`) : null;
+  const root = item ? document.querySelector("#workspace") : null;
   if (!item || !root) return;
   const title = root.querySelector("[data-field='title']");
   const notes = root.querySelector("[data-field='notes']");
@@ -2377,9 +2467,13 @@ function addJournal() {
   if (!item) return;
   const title = state.journalComposer.title.trim();
   const body = state.journalComposer.body;
-  if (!title && !updateText(body)) {
+  if (!title && !updateText(body) && !state.journalComposer.decision?.trim()) {
     setStatus("Write a title or some text before adding the update.", { error: true, sticky: true });
-    return;
+    return false;
+  }
+  if (!state.journalComposer.when || Number.isNaN(new Date(state.journalComposer.when).getTime())) {
+    setStatus("Choose a valid date and time for this update.", { error: true, sticky: true });
+    return false;
   }
   const createdAt = fromLocalInput(state.journalComposer.when);
   const entry = {
@@ -2388,14 +2482,20 @@ function addJournal() {
     updatedAt: createdAt,
     title: title.replace(/\n/g, " ").slice(0, 200),
     body: body.slice(0, 8000),
+    decision: (state.journalComposer.decision || "").slice(0, 2000),
+    nextStep: item.nextStep,
+    owner: item.owner,
+    due: item.targetDate,
   };
   item.journal.push(entry);
+  if (model.weekStart(toLocalInput(createdAt).slice(0, 10)) !== state.reviewWeek) state.guidedDetails.add("history");
   state.expandedJournal.add(entry.id);
   state.journalComposer = { when: "", title: "", body: "" };
   state.updateComposerOpen = false;
   touch(item);
   save();
   render({ reveal: `[data-journal-id="${CSS.escape(entry.id)}"]` });
+  return true;
 }
 
 function saveJournalEdit(id) {
@@ -2406,17 +2506,20 @@ function saveJournalEdit(id) {
   if (!entry || !titleEl || !bodyEl) return;
   const title = titleEl.value.replace(/\n/g, " ").trim().slice(0, 200);
   const body = bodyEl.value.slice(0, 8000);
-  if (!title && !body.trim()) {
+  const decision = document.querySelector("[data-edit-journal-decision]")?.value.slice(0, 2000) ?? entry.decision;
+  if (!title && !body.trim() && !decision?.trim()) {
     setStatus("Write a title or some text, or delete the entry.", { error: true, sticky: true });
     return;
   }
-  if (title !== entry.title || body !== entry.body) entry.updatedAt = new Date().toISOString();
+  if (title !== entry.title || body !== entry.body || decision !== entry.decision) entry.updatedAt = new Date().toISOString();
   entry.title = title;
   entry.body = body;
+  entry.decision = decision;
   state.editingJournalId = null;
   touch(item);
   save();
   render({ reveal: `[data-journal-id="${CSS.escape(id)}"]` });
+  return true;
 }
 
 function deleteJournal(id) {
@@ -2856,6 +2959,11 @@ function trapTab(event, root) {
 
 function applyText(item, target) {
   const field = target.dataset.field;
+  if (field === "owner" || field === "targetDate") {
+    item[field] = field === "owner" ? target.value.slice(0, 120) : target.value;
+    touch(item);
+    return true;
+  }
   if (field === "title") {
     const cleaned = target.value.replace(/\n/g, " ").slice(0, 2000);
     if (cleaned !== target.value) target.value = cleaned;
@@ -3093,6 +3201,14 @@ document.addEventListener("click", (event) => {
       return;
     }
     if (pendingConfirm) return;
+    if (event.target.closest("[data-start-review]")) {
+      const first = activeItems().find((item) => !item.reviewedWeeks.includes(state.reviewWeek)) || activeItems()[0];
+      if (first) openProject(first.id);
+      return;
+    }
+    const guideMove = event.target.closest("[data-guide-move]");
+    if (guideMove && !guideMove.disabled) { navigateGuide(Number(guideMove.dataset.guideMove), false); return; }
+    if (event.target.closest("[data-reviewed-next]")) { navigateGuide(1, true); return; }
     const insideEffort = event.target.closest(".effort");
     const insideMenu = event.target.closest(".overflow");
     const closedEffort = Boolean(state.effortMenuId && !insideEffort);
@@ -3412,12 +3528,15 @@ document.addEventListener("click", (event) => {
     }
     if (event.target.closest("[data-add-update]")) {
       state.updateComposerOpen = true;
+      const today = toLocalInput();
+      state.journalComposer.when ||= model.weekStart(today.slice(0, 10)) === state.reviewWeek ? today : `${state.reviewWeek}T09:00`;
       state.panelTab = "updates";
       render({ focus: "[data-journal-body]" });
       return;
     }
     if (event.target.closest("[data-cancel-update]")) {
       state.updateComposerOpen = false;
+      state.journalComposer = { when: "", title: "", body: "", decision: "" };
       render({ focus: "[data-add-update]" });
       return;
     }
@@ -3484,6 +3603,17 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-review-week]")) {
+    const week = model.weekStart(event.target.value);
+    if (week && savePendingUpdate()) { state.reviewWeek = week; state.editingJournalId = null; }
+    render({ focus: "[data-review-week]" });
+    return;
+  }
+  if (event.target.matches("[data-week-reviewed]")) {
+    setWeekReviewed(event.target.checked);
+    render({ focus: "[data-week-reviewed]" });
+    return;
+  }
   const reviewBox = event.target.closest("[data-card-review]");
   if (reviewBox) {
     const item = itemById(reviewBox.dataset.cardReview);
@@ -3686,6 +3816,7 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.matches("[data-journal-decision]")) { state.journalComposer.decision = event.target.value.slice(0, 2000); return; }
   if (event.target.dataset?.dueMonth != null || event.target.dataset?.dueDay != null) {
     const field = event.target;
     const digits = field.value.replace(/\D/g, "").slice(0, 2);
@@ -3895,6 +4026,13 @@ document.addEventListener("keydown", (event) => {
 desktopQuery.addEventListener("change", () => {
   if (state.openId) render();
 });
+
+document.addEventListener("toggle", (event) => {
+  const key = event.target.dataset?.guidedDetail;
+  if (!key || !event.target.isConnected) return;
+  if (event.target.open) state.guidedDetails.add(key);
+  else state.guidedDetails.delete(key);
+}, true);
 
 load();
 render();

@@ -16,6 +16,46 @@
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
 }
 
+.weekly-preview { display: block; margin-top: 5px; font-size: 13px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.week-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin: 14px 0 18px; color: var(--muted); font-size: 13px; }
+.week-toolbar label { display: flex; align-items: center; gap: 8px; }
+.week-toolbar input { width: auto; min-height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; background: var(--card); }
+.guided-project.workspace { display: block; height: auto; max-height: none; overflow: visible; margin: 20px auto 36px; padding: 0; background: transparent; border: 0; width: 100%; }
+.guided-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.guided-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0; }
+.guided-kicker { font-size: 12px; letter-spacing: .08em; color: var(--accent); font-weight: 800; margin: 0 0 4px; }
+.guided-heading h2 { color: var(--ink); font-size: 30px; text-transform: none; letter-spacing: -.02em; line-height: 1.15; margin: 0; overflow-wrap: anywhere; }
+.guided-project h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.guided-project .field { width: 100%; max-width: none; }
+.guided-project .section-heading { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
+.guided-project .section-heading h3 { margin: 0; }
+.guided-project .section-heading span { font-size: 13px; }
+.guided-updates, .guided-commitment { background: var(--card); padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 14px; }
+.guided-project .entry h4 { margin: 10px 0 4px; }
+.guided-project .entry-body { margin: 10px 0; overflow-wrap: anywhere; }
+.commitment-snapshot { color: var(--muted); font-size: 13px; }
+.guided-project .commitment-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.guided-project .stack-field { display: block; margin-top: 12px; }
+.guided-project .guided-detail { border-top: 1px solid var(--line); padding: 14px 0; }
+.guided-detail summary { font-weight: 700; cursor: pointer; }
+.guided-detail summary span { font-size: 13px; color: var(--muted); margin-left: 8px; font-weight: 500; }
+.guided-project .lines, .guided-project .work-grid { max-width: none; }
+.guided-project .work-x, .guided-project .line-x { opacity: 1; }
+.guided-project .work-frame { margin-top: 14px; }
+.guided-project .work-frame h3 { display: none; }
+.guided-footer { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+.guided-project button:disabled { opacity: .45; cursor: default; }
+@media(max-width:640px) {
+  .guided-project.workspace { padding: 0 16px; }
+  .guided-heading h2 { font-size: 25px; }
+  .guided-heading { align-items: flex-start; }
+  .guided-project .commitment-fields { grid-template-columns: 1fr; gap: 0; }
+  .guided-updates, .guided-commitment { padding: 14px; }
+  .guided-footer .inline-actions { flex-wrap: wrap; }
+  .guided-footer .btn { white-space: normal; }
+  .page-head .inline-actions { flex-wrap: wrap; }
+}
+
 * { box-sizing: border-box; }
 
 html, body { margin: 0; }

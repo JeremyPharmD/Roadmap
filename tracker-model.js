@@ -118,6 +118,14 @@
     return parsed.toISOString();
   }
 
+  function weekStart(value) {
+    const date = cleanDate(value);
+    if (!date) return "";
+    const parsed = new Date(`${date}T12:00:00Z`);
+    parsed.setUTCDate(parsed.getUTCDate() - (parsed.getUTCDay() + 6) % 7);
+    return parsed.toISOString().slice(0, 10);
+  }
+
   function cleanMoney(value) {
     if (value == null || value === "") return null;
     const number = typeof value === "number" ? value : Number(String(value).trim());
@@ -172,6 +180,10 @@ journalId: cleanLine(raw.journalId, 80),
       updatedAt,
       title: cleanLine(raw.title, 200),
       body: cleanText(raw.body, 8000),
+      decision: cleanText(raw.decision, 2000),
+      nextStep: cleanLine(raw.nextStep, 200),
+      owner: cleanLine(raw.owner, 120),
+      due: cleanDate(raw.due),
     };
   }
 
@@ -570,6 +582,7 @@ journalId: cleanLine(raw.journalId, 80),
       stage,
       archived: Boolean(raw.archived),
       review: Boolean(raw.review),
+      reviewedWeeks: Array.isArray(raw.reviewedWeeks) ? [...new Set(raw.reviewedWeeks.map(weekStart).filter(Boolean))] : [],
       nextStep: cleanLine(raw.nextStep || raw.nextAction || "", 200),
       updatedAt: cleanTimestamp(raw.updatedAt),
       owner: cleanLine(raw.owner, 120),
@@ -1243,6 +1256,7 @@ function migrate(saved, version) {
     copy.archived = false;
     copy.updatedAt = new Date().toISOString();
     copy.journal = [];
+    copy.reviewedWeeks = [];
     copy.checklist = copy.checklist.map((entry) => ({ ...entry, id: newId(), done: false }));
     copy.materials = copy.materials.map((entry) => ({ ...entry, id: newId() }));
     copy.deliverables = copy.deliverables.map((entry) => ({
@@ -1552,6 +1566,10 @@ function migrate(saved, version) {
         stage: item.stage,
         status: item.stage,
         archived: item.archived,
+        review: item.review,
+        reviewedWeeks: item.reviewedWeeks,
+        size: item.size,
+        notes: item.notes,
         nextStep: item.nextStep,
         nextAction: item.nextStep,
         updatedAt: item.updatedAt,
@@ -1635,6 +1653,7 @@ function migrate(saved, version) {
     migrate,
     migratePlan,
     reviewKind,
+    weekStart,
     seedProjects,
     progressOf,
     nextThree,
