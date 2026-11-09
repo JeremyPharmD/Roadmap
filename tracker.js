@@ -21,6 +21,8 @@ const state = {
   journalComposer: { when: "", title: "", body: "" },
   addingUpdate: false,
   updateDraft: "",
+  updateDate: "",
+  editingNext: false,
   draft: null,
   blockForm: null,
   blockError: "",
@@ -91,6 +93,18 @@ function fromLocalInput(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return new Date().toISOString();
   return date.toISOString();
+}
+
+function todayInput() {
+  const date = new Date();
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function formatDateLabel(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+  if (!match) return "";
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
 function formatDay(iso) {
@@ -1364,22 +1378,24 @@ function tasksHtml(item) {
 function updatesHtml(item) {
   const draft = state.addingUpdate
     ? `
-      <li class="line">
-        <span class="line-mark" aria-hidden="true"></span>
-        <input class="line-text" type="text" maxlength="500" data-update-draft value="${escapeHtml(state.updateDraft || "")}" placeholder="Add an update" aria-label="Add an update" />
+      <li class="update-draft">
+        <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || todayInput())}" aria-label="Update date" />
+        <input class="line-text" type="text" maxlength="500" data-update-draft value="${escapeHtml(state.updateDraft || "")}" placeholder="Comment" aria-label="Update comment" />
+        <button type="button" class="text-save" data-save-update>Save</button>
       </li>
     `
     : "";
   const lines = (item.updates || [])
-    .map(
-      (line, index) => `
+    .map((entry, index) => {
+      const when = formatDateLabel(entry.date);
+      return `
         <li class="update-line">
-          <span class="line-mark" aria-hidden="true"></span>
-          <span class="update-text">${escapeHtml(line)}</span>
+          ${when ? `<time class="update-date" datetime="${escapeHtml(entry.date)}">${escapeHtml(when)}</time>` : ""}
+          <span class="update-text">${escapeHtml(entry.text || "")}</span>
           <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
         </li>
-      `,
-    )
+      `;
+    })
     .join("");
   return `
     <section class="lines">
@@ -1389,6 +1405,26 @@ function updatesHtml(item) {
       </div>
       <ul class="line-list">${draft}${lines}</ul>
     </section>
+  `;
+}
+
+function nextItemHtml(item) {
+  const writing = state.editingNext || !item.nextStep;
+  if (!writing) {
+    return `
+      <section class="lines next-read">
+        <h3>Next item</h3>
+        <p class="next-text"><button type="button" data-edit-next>${escapeHtml(item.nextStep)}</button></p>
+      </section>
+    `;
+  }
+  return `
+    <label class="stack-field next-item">Next item
+      <span class="next-edit">
+        <input class="field" type="text" maxlength="200" data-field="nextStep" data-next-draft value="${escapeHtml(item.nextStep || "")}" placeholder="What's next" aria-label="Next item" />
+        <button type="button" class="text-save" data-save-next>Save</button>
+      </span>
+    </label>
   `;
 }
 
@@ -1552,12 +1588,7 @@ function insideHtml(item) {
       ${sizePicker(item)}
       ${tasksHtml(item)}
       ${updatesHtml(item)}
-      <label class="stack-field history-field">History
-        <textarea class="field history-note" rows="1" maxlength="8000" data-field="notes" placeholder="What happened" aria-label="History">${escapeHtml(item.notes || "")}</textarea>
-      </label>
-      <label class="stack-field next-item">Next item
-        <input class="field" type="text" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep || "")}" placeholder="What's next" aria-label="Next item" />
-      </label>
+      ${nextItemHtml(item)}
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
   `;
@@ -1855,6 +1886,8 @@ function openProject(id) {
   state.updateComposerOpen = false;
   state.addingUpdate = false;
   state.updateDraft = "";
+  state.updateDate = "";
+  state.editingNext = false;
   state.menuOpen = false;
   state.effortMenuId = null;
   state.draft = null;
@@ -2217,23 +2250,37 @@ function moveCheck(id, direction) {
 function startUpdate() {
   if (!itemById(state.openId)) return;
   state.addingUpdate = true;
-  if (!state.updateDraft) state.updateDraft = "";
+  state.updateDraft = "";
+  state.updateDate = todayInput();
   render({ focus: "[data-update-draft]" });
 }
 
 function commitUpdate() {
   const item = itemById(state.openId);
   const field = document.querySelector("[data-update-draft]");
+  const dateField = document.querySelector("[data-update-date]");
   if (!item || !field) return;
   const text = field.value.replace(/\s+/g, " ").trim().slice(0, 500);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : state.updateDate || todayInput();
   state.addingUpdate = false;
   state.updateDraft = "";
+  state.updateDate = "";
   if (text) {
-    item.updates = [text, ...(item.updates || [])];
+    item.updates = [{ date, text }, ...(item.updates || [])];
     touch(item);
     save();
   }
   render({ focus: "[data-add-update-line]" });
+}
+
+function saveNextItem() {
+  const item = itemById(state.openId);
+  const field = document.querySelector("[data-next-draft]");
+  if (!item || !field) return;
+  applyText(item, field);
+  state.editingNext = false;
+  save();
+  render();
 }
 
 function removeUpdate(index) {
@@ -2429,13 +2476,17 @@ function saveOpenCard() {
   const updateDraft = root.querySelector("[data-update-draft]");
   if (updateDraft) {
     const text = updateDraft.value.replace(/\s+/g, " ").trim().slice(0, 500);
+    const dateField = root.querySelector("[data-update-date]");
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : todayInput();
     if (text) {
-      item.updates = [text, ...(item.updates || [])];
+      item.updates = [{ date, text }, ...(item.updates || [])];
       touch(item);
     }
     state.addingUpdate = false;
     state.updateDraft = "";
+    state.updateDate = "";
   }
+  state.editingNext = false;
   if (root.querySelector("[data-summary-index]")) writeLines(item, "summary", [...root.querySelectorAll("[data-summary-index]")].map((field) => field.value));
   if (root.querySelector("[data-note-index]")) writeLines(item, "notes", [...root.querySelectorAll("[data-note-index]")].map((field) => field.value));
   if (notes && notes.tagName === "TEXTAREA") applyText(item, notes);
@@ -3293,6 +3344,19 @@ document.addEventListener("click", (event) => {
       startUpdate();
       return;
     }
+    if (event.target.closest("[data-save-update]")) {
+      commitUpdate();
+      return;
+    }
+    if (event.target.closest("[data-save-next]")) {
+      saveNextItem();
+      return;
+    }
+    if (event.target.closest("[data-edit-next]")) {
+      state.editingNext = true;
+      render({ focus: "[data-next-draft]" });
+      return;
+    }
     const removeUpdateButton = event.target.closest("[data-remove-update]");
     if (removeUpdateButton) {
       removeUpdate(removeUpdateButton.dataset.removeUpdate);
@@ -3793,6 +3857,10 @@ document.addEventListener("input", (event) => {
     if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
     return;
   }
+  if (event.target.dataset?.updateDate != null) {
+    state.updateDate = event.target.value;
+    return;
+  }
   if (event.target.dataset?.updateDraft != null) {
     state.updateDraft = event.target.value.slice(0, 500);
     return;
@@ -3931,6 +3999,11 @@ document.addEventListener("keydown", (event) => {
       event.preventDefault();
       saveOpenCard();
     }
+    return;
+  }
+  if (event.key === "Enter" && event.target.dataset?.nextDraft != null) {
+    event.preventDefault();
+    saveNextItem();
     return;
   }
   if (event.target.dataset?.updateDraft != null && (event.key === "Enter" || event.key === "Escape")) {

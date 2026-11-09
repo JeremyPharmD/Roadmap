@@ -2156,12 +2156,55 @@ textarea.field { min-height: 88px; resize: vertical; }
   pointer-events: none;
 }
 
+.update-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin-bottom: 4px;
+}
+
+.update-draft .line-text { flex: 1; min-width: 8rem; }
+
+.update-date-input {
+  width: auto;
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf3;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.text-save {
+  flex: none;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--cream);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .update-line {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: baseline;
+  gap: 10px;
   min-height: 28px;
   padding: 3px 4px;
+}
+
+.update-date {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .update-text {
@@ -2171,6 +2214,34 @@ textarea.field { min-height: 88px; resize: vertical; }
   font-weight: 600;
   line-height: 1.4;
   color: var(--ink);
+}
+
+.next-edit {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.next-edit .field { margin-top: 6px; }
+
+.next-read { margin-top: 14px; }
+
+.next-text {
+  margin: 0;
+  max-width: 36rem;
+}
+
+.next-text button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
 }
 
 .update-line .line-x { margin-top: 2px; }
