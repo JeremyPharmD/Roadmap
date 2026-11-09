@@ -23,6 +23,7 @@ const state = {
   updateDraft: "",
   updateDate: "",
   editingNext: false,
+  nextDraft: "",
   draft: null,
   blockForm: null,
   blockError: "",
@@ -1409,22 +1410,30 @@ function updatesHtml(item) {
 }
 
 function nextItemHtml(item) {
-  const writing = state.editingNext || !item.nextStep;
-  if (!writing) {
-    return `
-      <section class="lines next-read">
-        <h3>Next item</h3>
-        <p class="next-text"><button type="button" data-edit-next>${escapeHtml(item.nextStep)}</button></p>
-      </section>
-    `;
-  }
+  const draft = state.editingNext
+    ? `
+      <li class="line">
+        <input class="line-text" type="text" maxlength="200" data-next-draft value="${escapeHtml(state.nextDraft || "")}" placeholder="What's next" aria-label="Next item" />
+      </li>
+    `
+    : "";
+  const saved = !state.editingNext && item.nextStep
+    ? `
+      <li class="update-line">
+        <span class="update-text">${escapeHtml(item.nextStep)}</span>
+        <button type="button" class="line-x" data-remove-next aria-label="Remove next item" tabindex="-1">×</button>
+      </li>
+    `
+    : "";
+  const plus = state.editingNext || item.nextStep ? "" : `<button type="button" class="head-plus" data-add-next aria-label="Add a next item">+</button>`;
   return `
-    <label class="stack-field next-item">Next item
-      <span class="next-edit">
-        <input class="field" type="text" maxlength="200" data-field="nextStep" data-next-draft value="${escapeHtml(item.nextStep || "")}" placeholder="What's next" aria-label="Next item" />
-        <button type="button" class="text-save" data-save-next>Save</button>
-      </span>
-    </label>
+    <section class="lines next-read">
+      <div class="section-head">
+        <h3>Next item</h3>
+        ${plus}
+      </div>
+      <ul class="line-list">${draft}${saved}</ul>
+    </section>
   `;
 }
 
@@ -1888,6 +1897,7 @@ function openProject(id) {
   state.updateDraft = "";
   state.updateDate = "";
   state.editingNext = false;
+  state.nextDraft = "";
   state.menuOpen = false;
   state.effortMenuId = null;
   state.draft = null;
@@ -2273,14 +2283,38 @@ function commitUpdate() {
   render({ focus: "[data-add-update-line]" });
 }
 
+function startNext() {
+  const item = itemById(state.openId);
+  if (!item || state.editingNext || item.nextStep) return;
+  state.editingNext = true;
+  state.nextDraft = "";
+  render({ focus: "[data-next-draft]" });
+}
+
 function saveNextItem() {
   const item = itemById(state.openId);
   const field = document.querySelector("[data-next-draft]");
   if (!item || !field) return;
-  applyText(item, field);
+  const text = field.value.replace(/\s+/g, " ").trim().slice(0, 200);
   state.editingNext = false;
+  state.nextDraft = "";
+  if (text) {
+    item.nextStep = text;
+    touch(item);
+    save();
+  }
+  render({ focus: text ? ".next-read .update-text" : "[data-add-next]" });
+}
+
+function removeNext() {
+  const item = itemById(state.openId);
+  if (!item) return;
+  item.nextStep = "";
+  state.editingNext = false;
+  state.nextDraft = "";
+  touch(item);
   save();
-  render();
+  render({ focus: "[data-add-next]" });
 }
 
 function removeUpdate(index) {
@@ -2473,6 +2507,16 @@ function saveOpenCard() {
   if (title) applyText(item, title);
   const nextItem = root.querySelector("[data-field='nextStep']");
   if (nextItem) applyText(item, nextItem);
+  const nextDraft = root.querySelector("[data-next-draft]");
+  if (nextDraft) {
+    const text = nextDraft.value.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (text) {
+      item.nextStep = text;
+      touch(item);
+    }
+    state.editingNext = false;
+    state.nextDraft = "";
+  }
   const updateDraft = root.querySelector("[data-update-draft]");
   if (updateDraft) {
     const text = updateDraft.value.replace(/\s+/g, " ").trim().slice(0, 500);
@@ -3348,13 +3392,12 @@ document.addEventListener("click", (event) => {
       commitUpdate();
       return;
     }
-    if (event.target.closest("[data-save-next]")) {
-      saveNextItem();
+    if (event.target.closest("[data-add-next]")) {
+      startNext();
       return;
     }
-    if (event.target.closest("[data-edit-next]")) {
-      state.editingNext = true;
-      render({ focus: "[data-next-draft]" });
+    if (event.target.closest("[data-remove-next]")) {
+      removeNext();
       return;
     }
     const removeUpdateButton = event.target.closest("[data-remove-update]");
@@ -3857,6 +3900,10 @@ document.addEventListener("input", (event) => {
     if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
     return;
   }
+  if (event.target.dataset?.nextDraft != null) {
+    state.nextDraft = event.target.value.slice(0, 200);
+    return;
+  }
   if (event.target.dataset?.updateDate != null) {
     state.updateDate = event.target.value;
     return;
@@ -4001,8 +4048,14 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  if (event.key === "Enter" && event.target.dataset?.nextDraft != null) {
+  if (event.target.dataset?.nextDraft != null && (event.key === "Enter" || event.key === "Escape")) {
     event.preventDefault();
+    if (event.key === "Escape") {
+      state.editingNext = false;
+      state.nextDraft = "";
+      render({ focus: "[data-add-next]" });
+      return;
+    }
     saveNextItem();
     return;
   }
