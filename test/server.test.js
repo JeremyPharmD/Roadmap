@@ -38,6 +38,7 @@ test("a malformed path returns an error and the server keeps running", async () 
     assert.equal(await request(port, "/%ZZ"), 400);
     assert.equal(child.exitCode, null);
     assert.equal(await request(port, "/"), 200);
+    assert.equal(await request(port, "/licenses.html"), 200);
     assert.equal(await request(port, "/%2e%2e%2fpackage.json"), 400);
   } finally {
     child.kill();
