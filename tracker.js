@@ -1340,17 +1340,10 @@ function tasksHtml(item) {
   const rows = item.checklist
     .map(
       (entry) => `
-        <div class="work-item${entry.done ? " is-done" : ""}${entry.type === "decision" ? " is-decision" : ""}">
-          <div class="work-check">
-            <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
-            <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
-            <label class="decision">
-              <input type="checkbox" data-decision="${escapeHtml(entry.id)}" ${entry.type === "decision" ? "checked" : ""} aria-label="Decision needed for ${escapeHtml(entry.text || "work item")}" />
-              Decision needed
-            </label>
-            <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
-          </div>
-          <input class="work-context" type="text" maxlength="500" value="${escapeHtml(entry.note || "")}" data-check-note="${escapeHtml(entry.id)}" placeholder="Add context" aria-label="Context for ${escapeHtml(entry.text || "work item")}" />
+        <div class="work-check${entry.done ? " is-done" : ""}">
+          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
+          <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
+          <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
         </div>
       `,
     )
@@ -1525,7 +1518,10 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
-      ${linesSection("Summary", "summary", item.summary, "Add a point")}
+      ${linesSection("Last update", "summary", item.summary, "Add an update")}
+      <label class="stack-field next-item">Next item
+        <input class="field" type="text" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep || "")}" placeholder="What's next" aria-label="Next item" />
+      </label>
       <label class="stack-field history-field">History
         <textarea class="field history-note" rows="1" maxlength="8000" data-field="notes" placeholder="What happened" aria-label="History">${escapeHtml(item.notes || "")}</textarea>
       </label>
@@ -2282,7 +2278,7 @@ function ensureTrailingLine(root, kind) {
   const list = fields.at(-1).closest(".line-list");
   if (!list) return;
   const index = fields.length;
-  const placeholder = kind === "notes" ? "Add a note" : "Add a point";
+  const placeholder = kind === "notes" ? "Add a note" : "Add an update";
   const row = document.createElement("li");
   row.className = "line";
   row.innerHTML = `<span class="line-mark" aria-hidden="true"></span><input class="line-text" type="text" maxlength="500" data-${attr}-index="${index}" placeholder="${placeholder}" aria-label="${placeholder}" /><button type="button" class="line-x" data-remove-${attr}="${index}" aria-label="Delete ${placeholder.toLowerCase()}" tabindex="-1">×</button>`;
@@ -2361,6 +2357,8 @@ function saveOpenCard() {
   const title = root.querySelector("[data-field='title']");
   const notes = root.querySelector("[data-field='notes']");
   if (title) applyText(item, title);
+  const nextItem = root.querySelector("[data-field='nextStep']");
+  if (nextItem) applyText(item, nextItem);
   if (root.querySelector("[data-summary-index]")) writeLines(item, "summary", [...root.querySelectorAll("[data-summary-index]")].map((field) => field.value));
   if (root.querySelector("[data-note-index]")) writeLines(item, "notes", [...root.querySelectorAll("[data-note-index]")].map((field) => field.value));
   if (notes && notes.tagName === "TEXTAREA") applyText(item, notes);
@@ -2907,13 +2905,6 @@ function applyText(item, target) {
     const entry = item.checklist.find((line) => line.id === target.dataset.checkText);
     if (!entry) return false;
     entry.text = target.value.slice(0, 2000);
-    touch(item);
-    return true;
-  }
-  if (target.dataset.checkNote) {
-    const entry = item.checklist.find((line) => line.id === target.dataset.checkNote);
-    if (!entry) return false;
-    entry.note = target.value.slice(0, 500);
     touch(item);
     return true;
   }
@@ -3517,16 +3508,6 @@ document.addEventListener("change", (event) => {
   }
   const item = state.openId ? itemById(state.openId) : null;
   try {
-    const decision = event.target.closest("[data-decision]");
-    if (decision && item) {
-      const entry = item.checklist.find((line) => line.id === decision.dataset.decision);
-      if (!entry) return;
-      entry.type = decision.checked ? "decision" : "action";
-      touch(item);
-      save();
-      decision.closest(".work-item")?.classList.toggle("is-decision", decision.checked);
-      return;
-    }
     const box = event.target.closest("[data-check-id]");
     if (box && item) {
       const entry = item.checklist.find((line) => line.id === box.dataset.checkId);
