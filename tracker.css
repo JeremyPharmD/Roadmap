@@ -2226,6 +2226,8 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .next-read { margin-top: 14px; }
 
+.next-read .update-text { flex: 0 1 auto; }
+
 .next-text {
   margin: 0;
   max-width: 36rem;
