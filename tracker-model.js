@@ -597,15 +597,24 @@ function normalizeCheck(raw) {
     };
   }
 
-  function cleanUpdates(raw, summary) {
-    if (Array.isArray(raw.updates)) {
-      return raw.updates.map((line) => cleanLine(line, 500)).filter(Boolean).slice(0, 80);
+  function cleanUpdate(raw) {
+    if (typeof raw === "string") {
+      const text = cleanLine(raw, 500);
+      return text ? { date: "", text } : null;
     }
+    if (!raw || typeof raw !== "object") return null;
+    const text = cleanLine(raw.text || raw.comment || "", 500);
+    if (!text) return null;
+    return { date: cleanDate(raw.date || ""), text };
+  }
+
+  function cleanUpdates(raw, summary) {
+    if (Array.isArray(raw.updates)) return raw.updates.map(cleanUpdate).filter(Boolean).slice(0, 80);
     const stored = typeof raw.summary === "string" ? raw.summary : summary;
     if (!stored.includes("•")) return [];
     return stored
       .split("\n")
-      .map((line) => cleanLine(line.replace(/^[\s]*[•\-*]\s?/, ""), 500))
+      .map((line) => cleanUpdate(line.replace(/^[\s]*[•\-*]\s?/, "")))
       .filter(Boolean)
       .slice(0, 80);
   }
