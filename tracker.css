@@ -1923,14 +1923,24 @@ textarea.field { min-height: 88px; resize: vertical; }
   max-width: 36rem;
 }
 
-.work-plus {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.section-head h3 { margin: 0; }
+
+.head-plus {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   background: transparent;
   color: var(--accent);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1;
 }
@@ -1954,10 +1964,10 @@ textarea.field { min-height: 88px; resize: vertical; }
 }
 
 .work-name {
-  flex: 0 1 auto;
-  width: auto;
-  min-width: 4rem;
-  max-width: calc(100% - 11.5rem);
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   margin: 0;
   padding: 2px 0;
   border: 0;
@@ -1965,52 +1975,16 @@ textarea.field { min-height: 88px; resize: vertical; }
   background: transparent;
   font-size: 15px;
   font-weight: 600;
-  field-sizing: content;
 }
 
-.work-item.is-done .work-name {
+.work-check.is-done .work-name {
   color: var(--muted);
   text-decoration: line-through;
   text-decoration-thickness: 2px;
 }
 
-.decision {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex: none;
-  margin-left: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-
-.decision input {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--accent);
-}
-
-.work-item.is-decision .decision { color: var(--accent); }
-
-.work-context {
-  width: calc(100% - 24px);
-  margin: 0 0 6px 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.work-context::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
-
-.history-field { max-width: 36rem; }
+.history-field,
+.next-item { max-width: 36rem; }
 
 .drawer textarea.history-note {
   min-height: 0;
@@ -2023,7 +1997,6 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .work-x {
   flex: none;
-  margin-left: auto;
   border: 0;
   background: transparent;
   padding: 0;
@@ -2033,8 +2006,8 @@ textarea.field { min-height: 88px; resize: vertical; }
   opacity: 0;
 }
 
-.work-item:hover .work-x,
-.work-item:focus-within .work-x { opacity: 1; }
+.work-check:hover .work-x,
+.work-check:focus-within .work-x { opacity: 1; }
 
 .meter-line {
   display: flex;
@@ -2078,6 +2051,8 @@ textarea.field { min-height: 88px; resize: vertical; }
   text-transform: uppercase;
   color: var(--muted);
 }
+
+.section-head h3 { margin: 0; }
 
 .name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
 
@@ -2180,6 +2155,28 @@ textarea.field { min-height: 88px; resize: vertical; }
   opacity: 0;
   pointer-events: none;
 }
+
+.update-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 28px;
+  padding: 3px 4px;
+}
+
+.update-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.update-line .line-x { margin-top: 2px; }
+
+.update-line:hover .line-x,
+.update-line:focus-within .line-x { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .drawer { transition: none; }

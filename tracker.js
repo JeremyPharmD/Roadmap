@@ -19,6 +19,8 @@ const state = {
   menuOpen: false,
   effortMenuId: null,
   journalComposer: { when: "", title: "", body: "" },
+  addingUpdate: false,
+  updateDraft: "",
   draft: null,
   blockForm: null,
   blockError: "",
@@ -1340,28 +1342,52 @@ function tasksHtml(item) {
   const rows = item.checklist
     .map(
       (entry) => `
-        <div class="work-item${entry.done ? " is-done" : ""}${entry.type === "decision" ? " is-decision" : ""}">
-          <div class="work-check">
-            <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
-            <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
-            <label class="decision">
-              <input type="checkbox" data-decision="${escapeHtml(entry.id)}" ${entry.type === "decision" ? "checked" : ""} aria-label="Decision needed for ${escapeHtml(entry.text || "work item")}" />
-              Decision needed
-            </label>
-            <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
-          </div>
-          <input class="work-context" type="text" maxlength="500" value="${escapeHtml(entry.note || "")}" data-check-note="${escapeHtml(entry.id)}" placeholder="Add context" aria-label="Context for ${escapeHtml(entry.text || "work item")}" />
+        <div class="work-check${entry.done ? " is-done" : ""}">
+          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
+          <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
+          <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
         </div>
       `,
     )
     .join("");
   return `
     <section class="work-frame">
-      <h3>Work items</h3>
-      <div class="work-grid">
-        ${rows}
-        <button type="button" class="work-plus" data-add-check aria-label="Add a work item">+</button>
+      <div class="section-head">
+        <h3>Work items</h3>
+        <button type="button" class="head-plus" data-add-check aria-label="Add a work item">+</button>
       </div>
+      <div class="work-grid">${rows}</div>
+    </section>
+  `;
+}
+
+function updatesHtml(item) {
+  const draft = state.addingUpdate
+    ? `
+      <li class="line">
+        <span class="line-mark" aria-hidden="true"></span>
+        <input class="line-text" type="text" maxlength="500" data-update-draft value="${escapeHtml(state.updateDraft || "")}" placeholder="Add an update" aria-label="Add an update" />
+      </li>
+    `
+    : "";
+  const lines = (item.updates || [])
+    .map(
+      (line, index) => `
+        <li class="update-line">
+          <span class="line-mark" aria-hidden="true"></span>
+          <span class="update-text">${escapeHtml(line)}</span>
+          <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
+        </li>
+      `,
+    )
+    .join("");
+  return `
+    <section class="lines">
+      <div class="section-head">
+        <h3>Updates</h3>
+        <button type="button" class="head-plus" data-add-update-line aria-label="Add an update">+</button>
+      </div>
+      <ul class="line-list">${draft}${lines}</ul>
     </section>
   `;
 }
@@ -1525,9 +1551,12 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
-      ${linesSection("Summary", "summary", item.summary, "Add a point")}
+      ${updatesHtml(item)}
       <label class="stack-field history-field">History
         <textarea class="field history-note" rows="1" maxlength="8000" data-field="notes" placeholder="What happened" aria-label="History">${escapeHtml(item.notes || "")}</textarea>
+      </label>
+      <label class="stack-field next-item">Next item
+        <input class="field" type="text" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep || "")}" placeholder="What's next" aria-label="Next item" />
       </label>
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
@@ -1824,6 +1853,8 @@ function openProject(id) {
   state.panelTab = "overview";
   state.editingFields = false;
   state.updateComposerOpen = false;
+  state.addingUpdate = false;
+  state.updateDraft = "";
   state.menuOpen = false;
   state.effortMenuId = null;
   state.draft = null;
@@ -2183,6 +2214,38 @@ function moveCheck(id, direction) {
   if (pressed && !pressed.disabled) pressed.focus();
 }
 
+function startUpdate() {
+  if (!itemById(state.openId)) return;
+  state.addingUpdate = true;
+  if (!state.updateDraft) state.updateDraft = "";
+  render({ focus: "[data-update-draft]" });
+}
+
+function commitUpdate() {
+  const item = itemById(state.openId);
+  const field = document.querySelector("[data-update-draft]");
+  if (!item || !field) return;
+  const text = field.value.replace(/\s+/g, " ").trim().slice(0, 500);
+  state.addingUpdate = false;
+  state.updateDraft = "";
+  if (text) {
+    item.updates = [text, ...(item.updates || [])];
+    touch(item);
+    save();
+  }
+  render({ focus: "[data-add-update-line]" });
+}
+
+function removeUpdate(index) {
+  const item = itemById(state.openId);
+  const at = Number(index);
+  if (!item || !item.updates || at < 0 || at >= item.updates.length) return;
+  item.updates.splice(at, 1);
+  touch(item);
+  save();
+  render({ focus: "[data-add-update-line]" });
+}
+
 function addCheck() {
   const item = itemById(state.openId);
   if (!item) return;
@@ -2282,7 +2345,7 @@ function ensureTrailingLine(root, kind) {
   const list = fields.at(-1).closest(".line-list");
   if (!list) return;
   const index = fields.length;
-  const placeholder = kind === "notes" ? "Add a note" : "Add a point";
+  const placeholder = kind === "notes" ? "Add a note" : "Add an update";
   const row = document.createElement("li");
   row.className = "line";
   row.innerHTML = `<span class="line-mark" aria-hidden="true"></span><input class="line-text" type="text" maxlength="500" data-${attr}-index="${index}" placeholder="${placeholder}" aria-label="${placeholder}" /><button type="button" class="line-x" data-remove-${attr}="${index}" aria-label="Delete ${placeholder.toLowerCase()}" tabindex="-1">×</button>`;
@@ -2361,6 +2424,18 @@ function saveOpenCard() {
   const title = root.querySelector("[data-field='title']");
   const notes = root.querySelector("[data-field='notes']");
   if (title) applyText(item, title);
+  const nextItem = root.querySelector("[data-field='nextStep']");
+  if (nextItem) applyText(item, nextItem);
+  const updateDraft = root.querySelector("[data-update-draft]");
+  if (updateDraft) {
+    const text = updateDraft.value.replace(/\s+/g, " ").trim().slice(0, 500);
+    if (text) {
+      item.updates = [text, ...(item.updates || [])];
+      touch(item);
+    }
+    state.addingUpdate = false;
+    state.updateDraft = "";
+  }
   if (root.querySelector("[data-summary-index]")) writeLines(item, "summary", [...root.querySelectorAll("[data-summary-index]")].map((field) => field.value));
   if (root.querySelector("[data-note-index]")) writeLines(item, "notes", [...root.querySelectorAll("[data-note-index]")].map((field) => field.value));
   if (notes && notes.tagName === "TEXTAREA") applyText(item, notes);
@@ -2910,13 +2985,6 @@ function applyText(item, target) {
     touch(item);
     return true;
   }
-  if (target.dataset.checkNote) {
-    const entry = item.checklist.find((line) => line.id === target.dataset.checkNote);
-    if (!entry) return false;
-    entry.note = target.value.slice(0, 500);
-    touch(item);
-    return true;
-  }
   if (target.dataset.checkAnswer && target.type !== "date") {
     const entry = item.checklist.find((line) => line.id === target.dataset.checkAnswer);
     if (!entry) return false;
@@ -3221,6 +3289,15 @@ document.addEventListener("click", (event) => {
       addCheck();
       return;
     }
+    if (event.target.closest("[data-add-update-line]")) {
+      startUpdate();
+      return;
+    }
+    const removeUpdateButton = event.target.closest("[data-remove-update]");
+    if (removeUpdateButton) {
+      removeUpdate(removeUpdateButton.dataset.removeUpdate);
+      return;
+    }
     const removeSummary = event.target.closest("[data-remove-summary]");
     if (removeSummary) {
       removeLine("summary", removeSummary.dataset.removeSummary);
@@ -3517,16 +3594,6 @@ document.addEventListener("change", (event) => {
   }
   const item = state.openId ? itemById(state.openId) : null;
   try {
-    const decision = event.target.closest("[data-decision]");
-    if (decision && item) {
-      const entry = item.checklist.find((line) => line.id === decision.dataset.decision);
-      if (!entry) return;
-      entry.type = decision.checked ? "decision" : "action";
-      touch(item);
-      save();
-      decision.closest(".work-item")?.classList.toggle("is-decision", decision.checked);
-      return;
-    }
     const box = event.target.closest("[data-check-id]");
     if (box && item) {
       const entry = item.checklist.find((line) => line.id === box.dataset.checkId);
@@ -3726,6 +3793,10 @@ document.addEventListener("input", (event) => {
     if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
     return;
   }
+  if (event.target.dataset?.updateDraft != null) {
+    state.updateDraft = event.target.value.slice(0, 500);
+    return;
+  }
   if (event.target.dataset?.summaryIndex != null || event.target.dataset?.noteIndex != null) {
     const item = itemById(state.openId);
     const root = event.target.closest(".workspace");
@@ -3860,6 +3931,17 @@ document.addEventListener("keydown", (event) => {
       event.preventDefault();
       saveOpenCard();
     }
+    return;
+  }
+  if (event.target.dataset?.updateDraft != null && (event.key === "Enter" || event.key === "Escape")) {
+    event.preventDefault();
+    if (event.key === "Escape") {
+      state.addingUpdate = false;
+      state.updateDraft = "";
+      render({ focus: "[data-add-update-line]" });
+      return;
+    }
+    commitUpdate();
     return;
   }
   if (event.key === "Enter" && event.target.dataset?.checkText) {
