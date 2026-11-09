@@ -160,6 +160,17 @@ test("version 8 projects gain Get Insights first, and version 9 does not add it 
   assert.equal(left[0].checklist.some((entry) => entry.text === "Get Insights"), false);
 });
 
+test("card updates stay separate, and bullet summaries move into them once", () => {
+  const fresh = model.normalizeItem({ id: "u", title: "One", updates: ["Called the vendor", "  ", "Sent the form"] });
+  assert.deepEqual(fresh.updates, ["Called the vendor", "Sent the form"]);
+  const moved = model.normalizeItem({ id: "m", title: "Two", summary: "• Called the vendor\n• Sent the form" });
+  assert.deepEqual(moved.updates, ["Called the vendor", "Sent the form"]);
+  const prose = model.normalizeItem({ id: "p", title: "Three", summary: "A working picture of IT spending." });
+  assert.deepEqual(prose.updates, []);
+  const again = model.normalizeItem({ ...moved, updates: moved.updates });
+  assert.deepEqual(again.updates, ["Called the vendor", "Sent the form"]);
+});
+
 test("a project keeps its notes, size, and short description", () => {
   const item = model.normalizeItem({
     id: "named",

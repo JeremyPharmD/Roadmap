@@ -556,6 +556,7 @@ function normalizeCheck(raw) {
     const checklistSource = Array.isArray(raw.checklist) ? raw.checklist : legacyTasks;
     const brief = raw.brief && typeof raw.brief === "object" ? raw.brief : {};
     const summary = cleanText(raw.summary || "", 2000) || cleanText(raw.description, 2000);
+    const updates = cleanUpdates(raw, summary);
     const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim().slice(0, 80) : newId();
     const budget = Array.isArray(raw.budget) ? raw.budget.map(normalizeBudgetRow).filter(Boolean) : null;
     const schedule = raw.schedule && typeof raw.schedule === "object"
@@ -565,6 +566,7 @@ function normalizeCheck(raw) {
       id,
       title: cleanText(raw.title, 2000),
       summary,
+      updates,
       notes: cleanText(raw.notes, 8000),
       color,
       size: choiceId(SIZES, raw.size, ""),
@@ -593,6 +595,19 @@ function normalizeCheck(raw) {
       reviewHost: Boolean(raw.reviewHost),
       tools: normalizeTools(raw.tools),
     };
+  }
+
+  function cleanUpdates(raw, summary) {
+    if (Array.isArray(raw.updates)) {
+      return raw.updates.map((line) => cleanLine(line, 500)).filter(Boolean).slice(0, 80);
+    }
+    const stored = typeof raw.summary === "string" ? raw.summary : summary;
+    if (!stored.includes("•")) return [];
+    return stored
+      .split("\n")
+      .map((line) => cleanLine(line.replace(/^[\s]*[•\-*]\s?/, ""), 500))
+      .filter(Boolean)
+      .slice(0, 80);
   }
 
   function line(text, type, workstream, horizon) {
@@ -1548,6 +1563,7 @@ function migrate(saved, version) {
         id: item.id,
         title: item.title,
         summary: item.summary,
+        updates: item.updates,
         description: item.summary,
         color: item.color,
         stage: item.stage,
