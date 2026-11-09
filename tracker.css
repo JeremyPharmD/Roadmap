@@ -1923,14 +1923,24 @@ textarea.field { min-height: 88px; resize: vertical; }
   max-width: 36rem;
 }
 
-.work-plus {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.section-head h3 { margin: 0; }
+
+.head-plus {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   background: transparent;
   color: var(--accent);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1;
 }
@@ -2042,6 +2052,8 @@ textarea.field { min-height: 88px; resize: vertical; }
   color: var(--muted);
 }
 
+.section-head h3 { margin: 0; }
+
 .name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
 
 .delivery {
@@ -2143,6 +2155,28 @@ textarea.field { min-height: 88px; resize: vertical; }
   opacity: 0;
   pointer-events: none;
 }
+
+.update-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 28px;
+  padding: 3px 4px;
+}
+
+.update-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.update-line .line-x { margin-top: 2px; }
+
+.update-line:hover .line-x,
+.update-line:focus-within .line-x { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .drawer { transition: none; }
