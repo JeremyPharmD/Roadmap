@@ -473,11 +473,15 @@
       actions = el("div", { class: "editor-actions" }, [
         el("button", { class: "btn", "data-action": "duplicate", text: duplicate }),
         el("button", { class: "btn danger", "data-action": "ask-remove", text: "Remove" }),
-        el("button", { class: "btn", "data-action": "close", text: "Close" }),
+        el("button", { class: "btn", "data-action": "close", text: "Back to the matrix" }),
       ]);
     }
+    const heading = [record.name || "New credential", model.jurisdictionLabel(record.jurisdiction), model.holderLabel(record)].filter(Boolean).join(" · ");
     return el("section", { id: "editor", class: "editor", tabindex: "-1", "aria-label": "Credential" }, [
-      el("h2", { text: record.name || "New credential" }),
+      el("div", { class: "editor-top" }, [
+        el("h2", { text: heading }),
+        el("button", { class: "btn", "data-action": "close", text: "Back to the matrix" }),
+      ]),
       el("p", { class: "readout", text: readout(record, status) }),
       el("div", { class: "editor-grid" }, fields),
       el("p", { class: "hint", text: "Leave the reminder lead blank to use the default for this kind. A renewal stays on the alert list until the new expiration is outside that lead. Board-portal usernames and passwords are not stored." }),
@@ -534,7 +538,11 @@
     const upcoming = attention.length ? null : model.nextExpiration(state.records, current, state.settings);
     const quietMissing = model.matrixRows(state.records, current, state.settings, { group: "needs-date" }).filter((row) => !row.status.attention).length;
     const record = openRecord();
-    const layout = el("div", { class: record ? "layout is-editing" : "layout" }, [
+    if (record) {
+      document.getElementById("app").replaceChildren(renderEditor(record));
+      return;
+    }
+    const layout = el("div", { class: "layout" }, [
       el("div", { class: "primary" }, [
         renderSummary(summary, quietMissing),
         renderAlerts(attention, upcoming),
@@ -542,7 +550,6 @@
         renderTable(rows),
         renderSettings(model.missingTemplate(state.records)),
       ]),
-      renderEditor(record),
     ]);
     document.getElementById("app").replaceChildren(layout);
   }
@@ -551,14 +558,14 @@
     const view = captureView();
     const openChanged = state.openId !== state.paintedOpenId;
     render();
-    if (openChanged && state.openId) {
+    if (openChanged) {
+      window.scrollTo(0, 0);
       const editor = document.getElementById("editor");
-      if (state.focusName) {
+      if (state.openId && state.focusName) {
         const name = document.getElementById("field-name");
         if (name) name.focus();
         state.focusName = false;
       } else if (editor) editor.focus({ preventScroll: true });
-      if (editor && window.matchMedia("(max-width: 1099px)").matches) editor.scrollIntoView({ block: "nearest" });
     } else restoreView(view);
     state.paintedOpenId = state.openId;
   }
