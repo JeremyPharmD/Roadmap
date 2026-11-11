@@ -2267,6 +2267,21 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .compose-bar .update-date-input { margin-right: auto; }
 
+.update-note {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 4px 12px;
+}
+
+.update-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .update-line {
   display: flex;
   align-items: flex-start;
@@ -2323,10 +2338,13 @@ textarea.field { min-height: 88px; resize: vertical; }
   text-align: left;
 }
 
-.update-line .line-x { margin-top: 2px; }
+.update-line .line-x,
+.update-note .line-x { margin-top: 2px; }
 
 .update-line:hover .line-x,
 .update-line:focus-within .line-x,
+.update-note:hover .line-x,
+.update-note:focus-within .line-x,
 .summary-read:hover .line-x,
 .summary-read:focus-within .line-x { opacity: 1; }
 

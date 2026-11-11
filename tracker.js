@@ -1385,10 +1385,12 @@ function updatesHtml(item) {
     .map((entry, index) => {
       const when = formatDateLabel(entry.date);
       return `
-        <li class="update-line">
-          ${when ? `<time class="update-date" datetime="${escapeHtml(entry.date)}">${escapeHtml(when)}</time>` : ""}
+        <li class="update-note">
+          <div class="update-meta">
+            ${when ? `<time class="update-date" datetime="${escapeHtml(entry.date)}">${escapeHtml(when)}</time>` : "<span></span>"}
+            <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
+          </div>
           <span class="update-text">${escapeHtml(entry.text || "")}</span>
-          <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
         </li>
       `;
     })
