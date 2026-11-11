@@ -2054,7 +2054,19 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .section-head h3 { margin: 0; }
 
-.name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
+.stack-field .name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
+
+.summary-field { margin-top: 8px; }
+
+.stack-field textarea.summary-input {
+  min-height: 2.6rem;
+  margin-top: 4px;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  resize: vertical;
+}
 
 .delivery {
   display: flex;
@@ -2180,16 +2192,26 @@ textarea.field { min-height: 88px; resize: vertical; }
   font-weight: 600;
 }
 
-.text-save {
+.text-save,
+.text-cancel {
   flex: none;
   min-height: 32px;
   padding: 4px 10px;
   border: 0;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--cream);
   font-size: 14px;
   font-weight: 700;
+}
+
+.text-save {
+  background: var(--accent);
+  color: var(--cream);
+}
+
+.text-cancel {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
 }
 
 .compose {
