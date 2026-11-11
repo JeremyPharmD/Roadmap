@@ -1,8 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const zlib = require("node:zlib");
-const model = require("../license-model");
-const workbook = require("../license-workbook");
+const model = require("../licenses/license-model");
+const workbook = require("../licenses/license-workbook");
 
 function inflateRaw(bytes) {
   return zlib.inflateRawSync(Buffer.from(bytes));

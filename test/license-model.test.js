@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const model = require("../license-model");
+const model = require("../licenses/license-model");
 
 const TODAY = "2026-11-09";
 
@@ -255,19 +255,16 @@ test("csv escapes formulas and import rejects the wrong backup", () => {
 });
 
 test("the landing page is wired to the model", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "licenses.html"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "licenses", "index.html"), "utf8");
   assert.match(html, /license-model\.js/);
   assert.match(html, /license-workbook\.js/);
   assert.match(html, /license\.js/);
   assert.match(html, /id="app"/);
   assert.match(html, /href="#matrix"/);
-  assert.match(html, /class="sections"/);
-  assert.match(html, /href="licenses.html" aria-current="page"/);
+  assert.doesNotMatch(html, /roadmap/i);
   const roadmap = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(roadmap, /class="sections"/);
-  assert.match(roadmap, /href="index.html" aria-current="page"/);
-  assert.match(roadmap, /href="licenses.html">Licenses/);
-  const ui = fs.readFileSync(path.join(__dirname, "..", "license.js"), "utf8");
+  assert.doesNotMatch(roadmap, /licenses/);
+  const ui = fs.readFileSync(path.join(__dirname, "..", "licenses", "license.js"), "utf8");
   assert.match(ui, /id: "matrix"/);
   assert.match(ui, /Back to the matrix/);
 });
