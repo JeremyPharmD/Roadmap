@@ -22,6 +22,7 @@ const state = {
   addingUpdate: false,
   updateDraft: "",
   updateDate: "",
+  editingUpdateDate: null,
   editingNext: false,
   nextDraft: "",
   editingSummary: false,
@@ -1384,10 +1385,13 @@ function updatesHtml(item) {
   const lines = (item.updates || [])
     .map((entry, index) => {
       const when = formatDateLabel(entry.date);
+      const dateControl = state.editingUpdateDate === index
+        ? `<input class="update-date-input" type="date" data-edit-update-date="${index}" value="${escapeHtml(entry.date || "")}" aria-label="Update date" />`
+        : `<button type="button" class="update-date" data-open-update-date="${index}">${escapeHtml(when || "Add date")}</button>`;
       return `
         <li class="update-note">
           <div class="update-meta">
-            ${when ? `<time class="update-date" datetime="${escapeHtml(entry.date)}">${escapeHtml(when)}</time>` : "<span></span>"}
+            ${dateControl}
             <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
           </div>
           <span class="update-text">${escapeHtml(entry.text || "")}</span>
@@ -1931,6 +1935,7 @@ function openProject(id) {
   state.addingUpdate = false;
   state.updateDraft = "";
   state.updateDate = "";
+  state.editingUpdateDate = null;
   state.editingNext = false;
   state.nextDraft = "";
   state.editingSummary = false;
@@ -3523,6 +3528,17 @@ document.addEventListener("click", (event) => {
       removeNext();
       return;
     }
+    const openDate = event.target.closest("[data-open-update-date]");
+    if (openDate) {
+      const index = Number(openDate.dataset.openUpdateDate);
+      state.editingUpdateDate = index;
+      render({ focus: `[data-edit-update-date="${index}"]` });
+      const field = document.querySelector(`[data-edit-update-date="${index}"]`);
+      if (field && typeof field.showPicker === "function") {
+        try { field.showPicker(); } catch (error) { /* The field stays focused when the picker cannot open. */ }
+      }
+      return;
+    }
     const removeUpdateButton = event.target.closest("[data-remove-update]");
     if (removeUpdateButton) {
       removeUpdate(removeUpdateButton.dataset.removeUpdate);
@@ -3812,6 +3828,19 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.dataset?.editUpdateDate != null) {
+    const item = itemById(state.openId);
+    const at = Number(event.target.dataset.editUpdateDate);
+    const value = event.target.value;
+    if (item?.updates?.[at] && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      item.updates[at].date = value;
+      touch(item);
+      save();
+    }
+    state.editingUpdateDate = null;
+    render();
+    return;
+  }
   const reviewBox = event.target.closest("[data-card-review]");
   if (reviewBox) {
     const item = itemById(reviewBox.dataset.cardReview);
@@ -4154,6 +4183,12 @@ document.addEventListener("focusout", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.target.dataset?.editUpdateDate != null && event.key === "Escape") {
+    event.preventDefault();
+    state.editingUpdateDate = null;
+    render();
+    return;
+  }
   if (event.target.classList?.contains("title-rename")) {
     if (event.key === "Enter") {
       event.preventDefault();
