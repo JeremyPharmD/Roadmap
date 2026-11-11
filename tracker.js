@@ -23,6 +23,7 @@ const state = {
   updateDraft: "",
   updateDate: "",
   editingUpdateDate: null,
+  editingUpdateIndex: null,
   editingNext: false,
   nextDraft: "",
   editingSummary: false,
@@ -1369,21 +1370,24 @@ function insertBullet(field) {
   field.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function updateComposerHtml() {
+  return `
+    <li class="compose">
+      <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-update-draft placeholder="Comment" aria-label="Update comment">${escapeHtml(state.updateDraft || "")}</textarea>
+      <div class="compose-bar">
+        <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || "")}" aria-label="Update date" />
+        <button type="button" class="text-cancel" data-cancel-update>Cancel</button>
+        <button type="button" class="text-save" data-save-update>Save</button>
+      </div>
+    </li>
+  `;
+}
+
 function updatesHtml(item) {
-  const draft = state.addingUpdate
-    ? `
-      <li class="compose">
-        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-update-draft placeholder="Comment" aria-label="Update comment">${escapeHtml(state.updateDraft || "")}</textarea>
-        <div class="compose-bar">
-          <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || todayInput())}" aria-label="Update date" />
-          <button type="button" class="text-cancel" data-cancel-update>Cancel</button>
-          <button type="button" class="text-save" data-save-update>Save</button>
-        </div>
-      </li>
-    `
-    : "";
+  const draft = state.addingUpdate ? updateComposerHtml() : "";
   const lines = (item.updates || [])
     .map((entry, index) => {
+      if (state.editingUpdateIndex === index) return updateComposerHtml();
       const when = formatDateLabel(entry.date);
       const dateControl = state.editingUpdateDate === index
         ? `<input class="update-date-input" type="date" data-edit-update-date="${index}" value="${escapeHtml(entry.date || "")}" aria-label="Update date" />`
@@ -1394,7 +1398,7 @@ function updatesHtml(item) {
             ${dateControl}
             <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
           </div>
-          <span class="update-text">${escapeHtml(entry.text || "")}</span>
+          <button type="button" class="update-text" data-edit-update="${index}">${escapeHtml(entry.text || "")}</button>
         </li>
       `;
     })
@@ -1425,7 +1429,7 @@ function nextItemHtml(item) {
   const saved = !state.editingNext && item.nextStep
     ? `
       <li class="update-line">
-        <span class="update-text">${escapeHtml(item.nextStep)}</span>
+        <button type="button" class="update-text" data-edit-next>${escapeHtml(item.nextStep)}</button>
         <button type="button" class="line-x" data-remove-next aria-label="Remove next item" tabindex="-1">×</button>
       </li>
     `
@@ -1936,6 +1940,7 @@ function openProject(id) {
   state.updateDraft = "";
   state.updateDate = "";
   state.editingUpdateDate = null;
+  state.editingUpdateIndex = null;
   state.editingNext = false;
   state.nextDraft = "";
   state.editingSummary = false;
@@ -2341,18 +2346,39 @@ function clearSummary() {
   render({ focus: "[data-add-summary]" });
 }
 
-function startUpdate() {
-  if (!itemById(state.openId)) return;
-  state.addingUpdate = true;
-  state.updateDraft = "• ";
-  state.updateDate = todayInput();
+function focusUpdateDraft() {
   render({ focus: "[data-update-draft]" });
   const field = document.querySelector("[data-update-draft]");
   if (field) field.selectionStart = field.selectionEnd = field.value.length;
+  fitCompose(field);
+  fitOpenWriting();
+}
+
+function startUpdate() {
+  if (!itemById(state.openId)) return;
+  state.editingUpdateIndex = null;
+  state.addingUpdate = true;
+  state.updateDraft = "• ";
+  state.updateDate = todayInput();
+  focusUpdateDraft();
+}
+
+function editUpdate(index) {
+  const item = itemById(state.openId);
+  const at = Number(index);
+  const entry = item?.updates?.[at];
+  if (!entry) return;
+  state.addingUpdate = false;
+  state.editingUpdateDate = null;
+  state.editingUpdateIndex = at;
+  state.updateDraft = entry.text || "• ";
+  state.updateDate = entry.date || "";
+  focusUpdateDraft();
 }
 
 function cancelUpdate() {
   state.addingUpdate = false;
+  state.editingUpdateIndex = null;
   state.updateDraft = "";
   state.updateDate = "";
   render({ focus: "[data-add-update-line]" });
@@ -2364,15 +2390,23 @@ function commitUpdate() {
   const dateField = document.querySelector("[data-update-date]");
   if (!item || !field) return;
   const text = noteText(field.value);
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : state.updateDate || todayInput();
-  state.addingUpdate = false;
-  state.updateDraft = "";
-  state.updateDate = "";
-  if (text) {
+  const raw = dateField?.value || state.updateDate || "";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+  const at = state.editingUpdateIndex;
+  if (at != null && item.updates?.[at]) {
+    if (text) item.updates[at] = { date, text };
+    else item.updates.splice(at, 1);
+    touch(item);
+    save();
+  } else if (text) {
     item.updates = [{ date, text }, ...(item.updates || [])];
     touch(item);
     save();
   }
+  state.addingUpdate = false;
+  state.editingUpdateIndex = null;
+  state.updateDraft = "";
+  state.updateDate = "";
   render({ focus: "[data-add-update-line]" });
 }
 
@@ -2384,6 +2418,20 @@ function startNext() {
   render({ focus: "[data-next-draft]" });
   const field = document.querySelector("[data-next-draft]");
   if (field) field.selectionStart = field.selectionEnd = field.value.length;
+  fitCompose(field);
+  fitOpenWriting();
+}
+
+function editNext() {
+  const item = itemById(state.openId);
+  if (!item || state.editingNext || !item.nextStep) return;
+  state.editingNext = true;
+  state.nextDraft = item.nextStep;
+  render({ focus: "[data-next-draft]" });
+  const field = document.querySelector("[data-next-draft]");
+  if (field) field.selectionStart = field.selectionEnd = field.value.length;
+  fitCompose(field);
+  fitOpenWriting();
 }
 
 function cancelNext() {
@@ -2397,14 +2445,15 @@ function saveNextItem() {
   const field = document.querySelector("[data-next-draft]");
   if (!item || !field) return;
   const text = noteText(field.value);
+  const hadText = Boolean(item.nextStep);
   state.editingNext = false;
   state.nextDraft = "";
-  if (text) {
+  if (text || hadText) {
     item.nextStep = text;
     touch(item);
     save();
   }
-  render({ focus: text ? ".next-read .update-text" : "[data-add-next]" });
+  render({ focus: text ? ".next-read h3" : "[data-add-next]" });
 }
 
 function removeNext() {
@@ -2629,12 +2678,19 @@ function saveOpenCard() {
   if (updateDraft) {
     const text = noteText(updateDraft.value);
     const dateField = root.querySelector("[data-update-date]");
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : todayInput();
-    if (text) {
+    const raw = dateField?.value || state.updateDate || "";
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+    const at = state.editingUpdateIndex;
+    if (at != null && item.updates?.[at]) {
+      if (text) item.updates[at] = { date, text };
+      else item.updates.splice(at, 1);
+      touch(item);
+    } else if (text) {
       item.updates = [{ date, text }, ...(item.updates || [])];
       touch(item);
     }
     state.addingUpdate = false;
+    state.editingUpdateIndex = null;
     state.updateDraft = "";
     state.updateDate = "";
   }
@@ -4159,6 +4215,18 @@ function cancelRename() {
 }
 
 document.addEventListener("dblclick", (event) => {
+  const update = event.target.closest("[data-edit-update]");
+  if (update && !pendingConfirm) {
+    event.preventDefault();
+    editUpdate(update.dataset.editUpdate);
+    return;
+  }
+  const nextNote = event.target.closest("[data-edit-next]");
+  if (nextNote && !pendingConfirm) {
+    event.preventDefault();
+    editNext();
+    return;
+  }
   const name = event.target.closest("[data-rename]");
   if (!name || pendingConfirm) return;
   const item = itemById(name.dataset.rename);
