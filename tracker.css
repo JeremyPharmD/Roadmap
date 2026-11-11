@@ -2323,6 +2323,22 @@ button.update-date:hover { border-bottom-color: var(--accent); color: var(--acce
   overflow-wrap: anywhere;
 }
 
+button.update-text {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink);
+  text-align: left;
+  cursor: text;
+}
+
 .next-edit {
   display: flex;
   align-items: flex-end;
