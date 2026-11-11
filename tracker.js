@@ -1341,13 +1341,19 @@ function toolsHtml(item) {
   return `<section><h3>Planning tools</h3><p class="hint">These tables are manual. Future integrations and AI interpretation are not part of this version.</p>${parts.join("")}</section>`;
 }
 
+function blockText(value) {
+  return String(value || "").replace(/\r\n?/g, "\n").trim().slice(0, model.BLOCK_LIMIT);
+}
+
 function updatesHtml(item) {
   const draft = state.addingUpdate
     ? `
-      <li class="update-draft">
-        <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || todayInput())}" aria-label="Update date" />
-        <input class="line-text" type="text" maxlength="500" data-update-draft value="${escapeHtml(state.updateDraft || "")}" placeholder="Comment" aria-label="Update comment" />
-        <button type="button" class="text-save" data-save-update>Save</button>
+      <li class="compose">
+        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-update-draft placeholder="Comment" aria-label="Update comment">${escapeHtml(state.updateDraft || "")}</textarea>
+        <div class="compose-bar">
+          <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || todayInput())}" aria-label="Update date" />
+          <button type="button" class="text-save" data-save-update>Save</button>
+        </div>
       </li>
     `
     : "";
@@ -1377,8 +1383,11 @@ function updatesHtml(item) {
 function nextItemHtml(item) {
   const draft = state.editingNext
     ? `
-      <li class="line">
-        <input class="line-text" type="text" maxlength="200" data-next-draft value="${escapeHtml(state.nextDraft || "")}" placeholder="What's next" aria-label="Next item" />
+      <li class="compose">
+        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-next-draft placeholder="What's next" aria-label="Next item">${escapeHtml(state.nextDraft || "")}</textarea>
+        <div class="compose-bar">
+          <button type="button" class="text-save" data-save-next>Save</button>
+        </div>
       </li>
     `
     : "";
@@ -2234,7 +2243,7 @@ function commitUpdate() {
   const field = document.querySelector("[data-update-draft]");
   const dateField = document.querySelector("[data-update-date]");
   if (!item || !field) return;
-  const text = field.value.replace(/\s+/g, " ").trim().slice(0, 500);
+  const text = blockText(field.value);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : state.updateDate || todayInput();
   state.addingUpdate = false;
   state.updateDraft = "";
@@ -2259,7 +2268,7 @@ function saveNextItem() {
   const item = itemById(state.openId);
   const field = document.querySelector("[data-next-draft]");
   if (!item || !field) return;
-  const text = field.value.replace(/\s+/g, " ").trim().slice(0, 200);
+  const text = blockText(field.value);
   state.editingNext = false;
   state.nextDraft = "";
   if (text) {
@@ -2473,7 +2482,7 @@ function saveOpenCard() {
   if (nextItem) applyText(item, nextItem);
   const nextDraft = root.querySelector("[data-next-draft]");
   if (nextDraft) {
-    const text = nextDraft.value.replace(/\s+/g, " ").trim().slice(0, 200);
+    const text = blockText(nextDraft.value);
     if (text) {
       item.nextStep = text;
       touch(item);
@@ -2483,7 +2492,7 @@ function saveOpenCard() {
   }
   const updateDraft = root.querySelector("[data-update-draft]");
   if (updateDraft) {
-    const text = updateDraft.value.replace(/\s+/g, " ").trim().slice(0, 500);
+    const text = blockText(updateDraft.value);
     const dateField = root.querySelector("[data-update-date]");
     const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : todayInput();
     if (text) {
@@ -3026,7 +3035,7 @@ function applyText(item, target) {
     return true;
   }
   if (field === "nextStep") {
-    item.nextStep = target.value.slice(0, 200);
+    item.nextStep = target.value.slice(0, model.BLOCK_LIMIT);
     touch(item);
     syncCard(item);
     return true;
@@ -3358,6 +3367,10 @@ document.addEventListener("click", (event) => {
     }
     if (event.target.closest("[data-add-next]")) {
       startNext();
+      return;
+    }
+    if (event.target.closest("[data-save-next]")) {
+      saveNextItem();
       return;
     }
     if (event.target.closest("[data-remove-next]")) {
@@ -3865,7 +3878,7 @@ document.addEventListener("input", (event) => {
     return;
   }
   if (event.target.dataset?.nextDraft != null) {
-    state.nextDraft = event.target.value.slice(0, 200);
+    state.nextDraft = event.target.value.slice(0, model.BLOCK_LIMIT);
     return;
   }
   if (event.target.dataset?.updateDate != null) {
@@ -3873,7 +3886,7 @@ document.addEventListener("input", (event) => {
     return;
   }
   if (event.target.dataset?.updateDraft != null) {
-    state.updateDraft = event.target.value.slice(0, 500);
+    state.updateDraft = event.target.value.slice(0, model.BLOCK_LIMIT);
     return;
   }
   if (event.target.dataset?.summaryIndex != null || event.target.dataset?.noteIndex != null) {
@@ -4012,7 +4025,7 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  if (event.target.dataset?.nextDraft != null && (event.key === "Enter" || event.key === "Escape")) {
+  if (event.target.dataset?.nextDraft != null && (event.key === "Escape" || (event.key === "Enter" && (event.metaKey || event.ctrlKey)))) {
     event.preventDefault();
     if (event.key === "Escape") {
       state.editingNext = false;
@@ -4023,7 +4036,7 @@ document.addEventListener("keydown", (event) => {
     saveNextItem();
     return;
   }
-  if (event.target.dataset?.updateDraft != null && (event.key === "Enter" || event.key === "Escape")) {
+  if (event.target.dataset?.updateDraft != null && (event.key === "Escape" || (event.key === "Enter" && (event.metaKey || event.ctrlKey)))) {
     event.preventDefault();
     if (event.key === "Escape") {
       state.addingUpdate = false;
