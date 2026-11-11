@@ -1963,6 +1963,31 @@ textarea.field { min-height: 88px; resize: vertical; }
   background: transparent;
 }
 
+.section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 36rem;
+}
+
+.section-list:empty { display: none; }
+
+.section-name {
+  width: 100%;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.section-name::placeholder { color: var(--muted); font-weight: 600; }
+
+.work-frame .add-line { margin: 0 0 12px; }
+
 .work-grid {
   display: flex;
   flex-direction: column;
