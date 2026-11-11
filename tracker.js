@@ -1341,6 +1341,13 @@ function toolsHtml(item) {
 }
 
 function tasksHtml(item) {
+  const sections = item.workstreams
+    .map(
+      (name, index) => `
+        <input class="section-name" type="text" maxlength="80" data-section-index="${index}" value="${escapeHtml(name)}" placeholder="Section" aria-label="Section" />
+      `,
+    )
+    .join("");
   const rows = item.checklist
     .map(
       (entry) => `
@@ -1355,6 +1362,8 @@ function tasksHtml(item) {
   return `
     <section class="work-frame">
       <h3>Work items</h3>
+      <div class="section-list">${sections}</div>
+      <button type="button" class="add-line" data-add-section>Add section</button>
       <div class="work-grid">
         ${rows}
         <button type="button" class="work-plus" data-add-check aria-label="Add a work item">+</button>
@@ -1388,7 +1397,7 @@ function editFieldsHtml(item) {
         <input class="field" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
       <label class="stack-field">Summary
-        <textarea class="field" rows="3" maxlength="2000" data-field="summary">${escapeHtml(item.summary || "")}</textarea>
+        <textarea class="field" rows="3" maxlength="2000" data-field="summary">${escapeHtml(withoutMarks(item.summary))}</textarea>
       </label>
       <div class="stack-field"><span class="label">Stage</span>
         <div class="segments" role="group" aria-label="Current stage">${phases}</div>
@@ -1400,7 +1409,7 @@ function editFieldsHtml(item) {
         <input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep || "")}" />
       </label>
       <label class="stack-field">Notes
-        <textarea class="field" rows="4" maxlength="8000" data-field="notes">${escapeHtml(item.notes || "")}</textarea>
+        <textarea class="field" rows="4" maxlength="8000" data-field="notes">${escapeHtml(withoutMarks(item.notes))}</textarea>
       </label>
     </div>
   `;
@@ -1408,7 +1417,8 @@ function editFieldsHtml(item) {
 
 function overviewHtml(item) {
   if (state.editingFields) return editFieldsHtml(item);
-  const summary = item.summary && item.summary.trim() ? escapeHtml(item.summary) : `<span class="muted">No summary yet</span>`;
+  const summaryText = withoutMarks(item.summary);
+  const summary = summaryText ? escapeHtml(summaryText) : `<span class="muted">No summary yet</span>`;
   const next = item.nextStep && item.nextStep.trim() ? escapeHtml(item.nextStep) : `<span class="muted">No next step</span>`;
   const effort = sizeLabel(item) || "Not set";
   return `
@@ -1500,7 +1510,7 @@ function statusUpdatesHtml(item) {
   return `
     <section class="updates">
       <h3>Updates</h3>
-      <textarea class="field bullet-note" rows="3" maxlength="8000" data-journal-body placeholder="• " aria-label="Status update">${escapeHtml(state.journalComposer.body || "• ")}</textarea>
+      <textarea class="field bullet-note" rows="3" maxlength="8000" data-journal-body placeholder="Write the update" aria-label="Status update">${escapeHtml(state.journalComposer.body || "")}</textarea>
       <button type="button" class="btn secondary" data-add-journal>Add update</button>
       ${list}
     </section>
@@ -1554,7 +1564,7 @@ function guidedProjectHtml(item) {
     ${guidedUpdatesHtml(item)}
     <section class="guided-commitment"><h3>Next commitment</h3><label class="stack-field">Next step<input class="field" maxlength="200" data-field="nextStep" value="${escapeHtml(item.nextStep)}" placeholder="What happens next?" /></label><div class="commitment-fields"><label class="stack-field">Owner<input class="field" maxlength="120" data-field="owner" value="${escapeHtml(item.owner)}" placeholder="Who will follow up?" /></label><label class="stack-field">Due date<input class="field" type="date" data-field="targetDate" value="${escapeHtml(item.targetDate)}" /></label></div></section>
     <details class="guided-detail" data-guided-detail="work" ${detail("work")}><summary>Work items <span>${escapeHtml(progress.fraction)} complete</span></summary>${tasksHtml(item)}</details>
-    <details class="guided-detail" data-guided-detail="background" ${detail("background")}><summary>Background & project settings</summary><label class="stack-field">Project name<input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" /></label>${sizePicker(item)}${linesSection("Summary", "summary", item.summary, "Add a point")}${linesSection("Undated notes", "notes", item.notes, "Add a note")}<label class="card-review"><input type="checkbox" data-card-review="${escapeHtml(item.id)}" ${item.review ? "checked" : ""} />Flag for attention</label><p class="hint">Existing summary and notes stay as background; they have not been assigned invented dates.</p></details>
+    <details class="guided-detail" data-guided-detail="background" ${detail("background")}><summary>Background & project settings</summary><label class="stack-field">Project name<input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" /></label>${sizePicker(item)}${textSection("Summary", "summary", item.summary, "Summary")}${textSection("Notes", "notes", item.notes, "Notes")}<label class="card-review"><input type="checkbox" data-card-review="${escapeHtml(item.id)}" ${item.review ? "checked" : ""} />Flag for attention</label><p class="hint">Existing summary and notes stay as background; they have not been assigned invented dates.</p></details>
     <footer class="guided-footer"><label class="card-review"><input type="checkbox" data-week-reviewed ${reviewed ? "checked" : ""} />Reviewed this week</label><div class="inline-actions"><button type="button" class="btn secondary" data-guide-move="-1" ${index <= 0 ? "disabled" : ""}>← Previous</button><button type="button" class="btn secondary" data-guide-move="1" ${index < 0 || index >= active.length - 1 ? "disabled" : ""}>Next →</button><button type="button" class="btn primary" data-reviewed-next>${index >= active.length - 1 || index < 0 ? "Reviewed & finish" : "Reviewed & next →"}</button></div></footer>
   </div>`;
 }
@@ -1599,8 +1609,8 @@ function insideHtml(item) {
       </label>
       ${sizePicker(item)}
       ${tasksHtml(item)}
-      ${linesSection("Summary", "summary", item.summary, "Add a point")}
-      ${linesSection("Notes", "notes", item.notes, "Add a note")}
+      ${textSection("Summary", "summary", item.summary, "Summary")}
+      ${textSection("Notes", "notes", item.notes, "Notes")}
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
     </div>
   `;
@@ -2091,8 +2101,9 @@ function syncCard(item) {
     }
     const blurb = row.querySelector(".blurb");
     if (blurb) {
-      blurb.textContent = item.summary || "No summary yet";
-      blurb.classList.toggle("is-placeholder", !item.summary);
+      const summaryText = withoutMarks(item.summary);
+      blurb.textContent = summaryText || "No summary yet";
+      blurb.classList.toggle("is-placeholder", !summaryText);
     }
     const stage = row.querySelector(".stage-line");
     if (stage) stage.textContent = `Stage: ${phaseOf(item.stage).short}`;
@@ -2264,6 +2275,17 @@ function moveCheck(id, direction) {
   if (pressed && !pressed.disabled) pressed.focus();
 }
 
+function addSection() {
+  const item = itemById(state.openId);
+  if (!item) return;
+  item.workstreams = item.workstreams.filter((name) => String(name || "").trim()).slice(0, 8);
+  if (item.workstreams.length >= 8) return;
+  item.workstreams.push("");
+  touch(item);
+  save();
+  render({ focus: `[data-section-index="${item.workstreams.length - 1}"]` });
+}
+
 function addCheck() {
   const item = itemById(state.openId);
   if (!item) return;
@@ -2311,8 +2333,46 @@ function lineText(lines) {
   return lines
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => `• ${line}`)
     .join("\n");
+}
+
+function withoutMarks(text) {
+  return String(text || "")
+    .split("\n")
+    .map((line) => line.replace(/^\s*•\s?/, ""))
+    .join("\n")
+    .replace(/^\n+|\n+$/g, "");
+}
+
+function settleWriting() {
+  let changed = false;
+  for (const item of state.items) {
+    for (const key of ["summary", "notes"]) {
+      const next = withoutMarks(item[key]);
+      if ((item[key] || "") !== next) {
+        item[key] = next;
+        changed = true;
+      }
+    }
+    for (const entry of item.journal || []) {
+      const next = withoutMarks(entry.body);
+      if ((entry.body || "") !== next) {
+        entry.body = next;
+        changed = true;
+      }
+    }
+  }
+  if (changed) writeStored();
+}
+
+function textSection(title, field, text, label) {
+  const limit = field === "summary" ? 2000 : 8000;
+  return `
+    <section class="lines">
+      <h3>${escapeHtml(title)}</h3>
+      <textarea class="field" rows="4" maxlength="${limit}" data-field="${field}" aria-label="${escapeHtml(label)}">${escapeHtml(withoutMarks(text))}</textarea>
+    </section>
+  `;
 }
 
 function lineAttr(kind) {
@@ -2394,45 +2454,6 @@ function removeLine(kind, index) {
   save();
   const next = Math.max(0, Math.min(Number(index), Math.max(0, lines.filter((line) => line.trim()).length)));
   render({ focus: `[data-${attr}-index="${next}"]` });
-}
-
-function bulletDraft(text) {
-  const value = String(text || "");
-  if (!value.trim()) return "• ";
-  return value
-    .split("\n")
-    .map((line) => {
-      const lead = line.match(/^\s*/)[0];
-      const body = line.slice(lead.length);
-      if (!body || body.startsWith("• ")) return line;
-      return `${lead}• ${body.replace(/^[•\-*]\s?/, "")}`;
-    })
-    .join("\n");
-}
-
-function bulletField(field) {
-  const start = field.selectionStart ?? field.value.length;
-  const lines = field.value.split("\n");
-  let pos = 0;
-  let caret = start;
-  const nextLines = lines.map((line) => {
-    const lead = line.match(/^\s*/)[0];
-    const body = line.slice(lead.length);
-    let rewritten = line;
-    if (body && !body.startsWith("• ")) {
-      rewritten = `${lead}• ${body.replace(/^[•\-*]\s?/, "")}`;
-    }
-    const lineEnd = pos + line.length;
-    const added = rewritten.length - line.length;
-    if (added && start > pos) caret += start >= lineEnd || start - pos >= lead.length ? added : 0;
-    pos = lineEnd + 1;
-    return rewritten;
-  });
-  const next = nextLines.join("\n");
-  if (next === field.value) return;
-  field.value = next;
-  const point = Math.max(0, Math.min(next.length, caret));
-  field.selectionStart = field.selectionEnd = point;
 }
 
 function saveOpenCard() {
@@ -2973,16 +2994,10 @@ function applyText(item, target) {
     return true;
   }
   if (field === "summary" || field === "notes") {
-    bulletField(target);
     const limit = field === "summary" ? 2000 : 8000;
-    const shown = target.value.slice(0, limit);
-    const stored = updateText(shown) ? shown : "";
-    if (!stored && target.value !== "• ") {
-      target.value = "• ";
-      target.selectionStart = target.selectionEnd = target.value.length;
-    }
-    item[field] = stored;
+    item[field] = target.value.slice(0, limit);
     touch(item);
+    if (field === "summary") syncCard(item);
     return true;
   }
   if (field === "nextStep") {
@@ -3215,7 +3230,7 @@ document.addEventListener("click", (event) => {
     const closedMenu = Boolean(state.menuOpen && !insideMenu);
     if (closedEffort) state.effortMenuId = null;
     if (closedMenu) state.menuOpen = false;
-    const continues = event.target.closest("[data-open], [data-add-project], [data-close], [data-tab], [data-edit-toggle], [data-duplicate], [data-archive], [data-restore], [data-delete-project], [data-add-check], [data-remove-check], [data-add-journal], [data-add-update], [data-view], [data-stage], [data-choose-size]");
+    const continues = event.target.closest("[data-open], [data-add-project], [data-close], [data-tab], [data-edit-toggle], [data-duplicate], [data-archive], [data-restore], [data-delete-project], [data-add-section], [data-add-check], [data-remove-check], [data-add-journal], [data-add-update], [data-view], [data-stage], [data-choose-size]");
     if ((closedEffort || closedMenu) && !continues) {
       render();
       return;
@@ -3310,6 +3325,10 @@ document.addEventListener("click", (event) => {
     const removeCheckButton = event.target.closest("[data-remove-check]");
     if (removeCheckButton) {
       removeCheck(removeCheckButton.dataset.removeCheck);
+      return;
+    }
+    if (event.target.closest("[data-add-section]")) {
+      addSection();
       return;
     }
     if (event.target.closest("[data-add-check]")) {
@@ -3826,6 +3845,24 @@ document.addEventListener("input", (event) => {
     if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
     return;
   }
+  if (event.target.dataset?.sectionIndex != null) {
+    const item = itemById(state.openId);
+    if (!item) return;
+    const index = Number(event.target.dataset.sectionIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= item.workstreams.length) return;
+    const previous = item.workstreams[index];
+    const next = event.target.value.replace(/\n/g, " ").slice(0, 80);
+    if (previous === next) return;
+    item.workstreams[index] = next;
+    if (String(previous || "").trim()) {
+      item.checklist.forEach((entry) => {
+        if (entry.workstream === previous) entry.workstream = next;
+      });
+    }
+    touch(item);
+    save();
+    return;
+  }
   if (event.target.dataset?.summaryIndex != null || event.target.dataset?.noteIndex != null) {
     const item = itemById(state.openId);
     const root = event.target.closest(".workspace");
@@ -3981,28 +4018,6 @@ document.addEventListener("keydown", (event) => {
     else event.target.blur();
     return;
   }
-  if (event.key === "Enter" && !event.shiftKey && (event.target.dataset?.field === "summary" || event.target.dataset?.field === "notes")) {
-    event.preventDefault();
-    const field = event.target;
-    const start = field.selectionStart;
-    const end = field.selectionEnd;
-    field.value = `${field.value.slice(0, start)}\n• ${field.value.slice(end)}`;
-    field.selectionStart = field.selectionEnd = start + 3;
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-    return;
-  }
-  if (event.key === "Enter" && !event.shiftKey && event.target.dataset?.journalBody != null) {
-    event.preventDefault();
-    const field = event.target;
-    const start = field.selectionStart;
-    const end = field.selectionEnd;
-    const next = `${field.value.slice(0, start)}\n• ${field.value.slice(end)}`;
-    field.value = next;
-    const caret = start + 3;
-    field.selectionStart = field.selectionEnd = caret;
-    field.dispatchEvent(new Event("input", { bubbles: true }));
-    return;
-  }
   if (event.key === "Enter" && event.target.dataset && event.target.dataset.field === "title") event.preventDefault();
   if (pendingConfirm) {
     trapTab(event, confirmRoot.querySelector(".confirm"));
@@ -4035,4 +4050,5 @@ document.addEventListener("toggle", (event) => {
 }, true);
 
 load();
+settleWriting();
 render();
