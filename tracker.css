@@ -2056,16 +2056,29 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .stack-field .name-input { font-size: 18px; font-weight: 700; color: var(--ink); }
 
-.summary-field { margin-top: 8px; }
+.summary-block { margin-top: 8px; }
 
-.stack-field textarea.summary-input {
-  min-height: 2.6rem;
-  margin-top: 4px;
-  padding: 6px 8px;
+.summary-read {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.summary-body {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
   font-size: 14px;
   font-weight: 500;
   line-height: 1.45;
-  resize: vertical;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .delivery {
@@ -2235,7 +2248,8 @@ textarea.field { min-height: 88px; resize: vertical; }
   font-size: 16px;
   font-weight: 600;
   line-height: 1.45;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
 }
 
 .compose-text:focus {
@@ -2312,7 +2326,9 @@ textarea.field { min-height: 88px; resize: vertical; }
 .update-line .line-x { margin-top: 2px; }
 
 .update-line:hover .line-x,
-.update-line:focus-within .line-x { opacity: 1; }
+.update-line:focus-within .line-x,
+.summary-read:hover .line-x,
+.summary-read:focus-within .line-x { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .drawer { transition: none; }

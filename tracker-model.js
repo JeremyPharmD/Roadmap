@@ -560,7 +560,7 @@ function normalizeCheck(raw) {
     const legacyTasks = Array.isArray(raw.tasks) ? raw.tasks : [];
     const checklistSource = Array.isArray(raw.checklist) ? raw.checklist : legacyTasks;
     const brief = raw.brief && typeof raw.brief === "object" ? raw.brief : {};
-    const summary = cleanText(raw.summary || "", 2000) || cleanText(raw.description, 2000);
+    const summary = cleanText(raw.summary || "", BLOCK_LIMIT) || cleanText(raw.description, 2000);
     const updates = cleanUpdates(raw, summary);
     const id = typeof raw.id === "string" && raw.id.trim() ? raw.id.trim().slice(0, 80) : newId();
     const budget = Array.isArray(raw.budget) ? raw.budget.map(normalizeBudgetRow).filter(Boolean) : null;

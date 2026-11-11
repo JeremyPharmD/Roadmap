@@ -24,6 +24,8 @@ const state = {
   updateDate: "",
   editingNext: false,
   nextDraft: "",
+  editingSummary: false,
+  summaryDraft: "",
   draft: null,
   blockForm: null,
   blockError: "",
@@ -1351,6 +1353,12 @@ function noteText(value) {
   return lines.map((line) => `• ${line}`).join("\n").slice(0, model.BLOCK_LIMIT);
 }
 
+function fitCompose(field) {
+  if (!field) return;
+  field.style.height = "auto";
+  field.style.height = `${field.scrollHeight}px`;
+}
+
 function insertBullet(field) {
   const start = field.selectionStart ?? field.value.length;
   const end = field.selectionEnd ?? start;
@@ -1424,6 +1432,39 @@ function nextItemHtml(item) {
         ${plus}
       </div>
       <ul class="line-list">${draft}${saved}</ul>
+    </section>
+  `;
+}
+
+function summaryHtml(item) {
+  const draft = state.editingSummary
+    ? `
+      <div class="compose">
+        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-summary-draft placeholder="Summary" aria-label="Summary">${escapeHtml(state.summaryDraft || "")}</textarea>
+        <div class="compose-bar">
+          <button type="button" class="text-cancel" data-cancel-summary>Cancel</button>
+          <button type="button" class="text-save" data-save-summary>Save</button>
+        </div>
+      </div>
+    `
+    : "";
+  const saved = !state.editingSummary && item.summary
+    ? `
+      <div class="summary-read">
+        <button type="button" class="summary-body" data-edit-summary>${escapeHtml(item.summary)}</button>
+        <button type="button" class="line-x" data-clear-summary aria-label="Remove summary" tabindex="-1">×</button>
+      </div>
+    `
+    : "";
+  const plus = state.editingSummary || item.summary ? "" : `<button type="button" class="head-plus" data-add-summary aria-label="Add a summary">+</button>`;
+  return `
+    <section class="lines summary-block">
+      <div class="section-head">
+        <h3>Summary</h3>
+        ${plus}
+      </div>
+      ${draft}
+      ${saved}
     </section>
   `;
 }
@@ -1585,9 +1626,7 @@ function insideHtml(item) {
       <label class="stack-field">Name
         <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
-      <label class="stack-field summary-field">Summary
-        <textarea class="field summary-input" rows="2" maxlength="2000" data-field="summary" placeholder="A short summary">${escapeHtml(item.summary || "")}</textarea>
-      </label>
+      ${summaryHtml(item)}
       ${sizePicker(item)}
       ${updatesHtml(item)}
       ${nextItemHtml(item)}
@@ -1848,10 +1887,7 @@ function fitOpenWriting() {
     drawer?.querySelectorAll("textarea.bullet-note, textarea.history-note").forEach(fitWriting);
     return;
   }
-  drawer.querySelectorAll(".summary-input").forEach((field) => {
-    field.style.height = "auto";
-    field.style.height = `${field.scrollHeight}px`;
-  });
+  drawer.querySelectorAll(".compose-text").forEach(fitCompose);
   drawer.classList.add("is-sizing");
   const height = measureDrawer(drawer);
   if (height) drawer.style.maxHeight = `${height}px`;
@@ -1895,6 +1931,8 @@ function openProject(id) {
   state.updateDate = "";
   state.editingNext = false;
   state.nextDraft = "";
+  state.editingSummary = false;
+  state.summaryDraft = "";
   state.menuOpen = false;
   state.effortMenuId = null;
   state.draft = null;
@@ -2254,6 +2292,48 @@ function moveCheck(id, direction) {
   if (pressed && !pressed.disabled) pressed.focus();
 }
 
+function startSummary() {
+  const item = itemById(state.openId);
+  if (!item || state.editingSummary) return;
+  state.editingSummary = true;
+  state.summaryDraft = item.summary && item.summary.trim() ? item.summary : "• ";
+  render({ focus: "[data-summary-draft]" });
+  const field = document.querySelector("[data-summary-draft]");
+  if (field) field.selectionStart = field.selectionEnd = field.value.length;
+  fitCompose(field);
+  fitOpenWriting();
+}
+
+function cancelSummary() {
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  const item = itemById(state.openId);
+  render({ focus: item?.summary ? ".summary-block h3" : "[data-add-summary]" });
+}
+
+function saveSummary() {
+  const item = itemById(state.openId);
+  const field = document.querySelector("[data-summary-draft]");
+  if (!item || !field) return;
+  item.summary = noteText(field.value);
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  touch(item);
+  save();
+  render({ focus: item.summary ? ".summary-block h3" : "[data-add-summary]" });
+}
+
+function clearSummary() {
+  const item = itemById(state.openId);
+  if (!item) return;
+  item.summary = "";
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  touch(item);
+  save();
+  render({ focus: "[data-add-summary]" });
+}
+
 function startUpdate() {
   if (!itemById(state.openId)) return;
   state.addingUpdate = true;
@@ -2530,6 +2610,13 @@ function saveOpenCard() {
     }
     state.editingNext = false;
     state.nextDraft = "";
+  }
+  const summaryDraft = root.querySelector("[data-summary-draft]");
+  if (summaryDraft) {
+    item.summary = noteText(summaryDraft.value);
+    touch(item);
+    state.editingSummary = false;
+    state.summaryDraft = "";
   }
   const updateDraft = root.querySelector("[data-update-draft]");
   if (updateDraft) {
@@ -3063,7 +3150,7 @@ function applyText(item, target) {
     return true;
   }
   if (field === "summary") {
-    item.summary = target.value.replace(/\r\n?/g, "\n").slice(0, 2000).trim();
+    item.summary = target.value.replace(/\r\n?/g, "\n").slice(0, model.BLOCK_LIMIT).trim();
     touch(item);
     return true;
   }
@@ -3400,6 +3487,22 @@ document.addEventListener("click", (event) => {
     }
     if (event.target.closest("[data-cancel-update]")) {
       cancelUpdate();
+      return;
+    }
+    if (event.target.closest("[data-add-summary], [data-edit-summary]")) {
+      startSummary();
+      return;
+    }
+    if (event.target.closest("[data-save-summary]")) {
+      saveSummary();
+      return;
+    }
+    if (event.target.closest("[data-cancel-summary]")) {
+      cancelSummary();
+      return;
+    }
+    if (event.target.closest("[data-clear-summary]")) {
+      clearSummary();
       return;
     }
     if (event.target.closest("[data-add-next]")) {
@@ -3918,11 +4021,14 @@ document.addEventListener("input", (event) => {
     if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
     return;
   }
-  if (event.target.dataset?.nextDraft != null || event.target.dataset?.updateDraft != null) {
+  if (event.target.dataset?.nextDraft != null || event.target.dataset?.updateDraft != null || event.target.dataset?.summaryDraft != null) {
     bulletField(event.target);
+    fitCompose(event.target);
     const value = event.target.value.slice(0, model.BLOCK_LIMIT);
     if (event.target.dataset.nextDraft != null) state.nextDraft = value;
+    else if (event.target.dataset.summaryDraft != null) state.summaryDraft = value;
     else state.updateDraft = value;
+    fitOpenWriting();
     return;
   }
   if (event.target.dataset?.updateDate != null) {
@@ -4065,23 +4171,27 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  if (event.target.dataset?.nextDraft != null || event.target.dataset?.updateDraft != null) {
-    const next = event.target.dataset.nextDraft != null;
+  if (event.target.dataset?.nextDraft != null || event.target.dataset?.updateDraft != null || event.target.dataset?.summaryDraft != null) {
+    const kind = event.target.dataset.nextDraft != null ? "next" : event.target.dataset.summaryDraft != null ? "summary" : "update";
     if (event.key === "Escape") {
       event.preventDefault();
-      if (next) cancelNext();
+      if (kind === "next") cancelNext();
+      else if (kind === "summary") cancelSummary();
       else cancelUpdate();
       return;
     }
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      if (next) saveNextItem();
+      if (kind === "next") saveNextItem();
+      else if (kind === "summary") saveSummary();
       else commitUpdate();
       return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       insertBullet(event.target);
+      fitCompose(event.target);
+      fitOpenWriting();
       return;
     }
   }
