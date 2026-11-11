@@ -14,6 +14,7 @@
     { id: "2xl", label: "2XL", short: "2XL" },
   ];
   const COLORS = ["#b54a2a", "#1f6f8b", "#6b5e52"];
+  const BLOCK_LIMIT = 4000;
   const LEGACY_COLORS = {
     "#c24b2a": "#b54a2a",
     "#5c6b45": "#1f6f8b",
@@ -99,6 +100,10 @@
 
   function cleanLine(value, max) {
     return cleanText(value, max).replace(/\n/g, " ").trim();
+  }
+
+  function cleanBlock(value, max) {
+    return cleanText(value, max).trim();
   }
 
   function cleanDate(value) {
@@ -573,7 +578,7 @@ function normalizeCheck(raw) {
       stage,
       archived: Boolean(raw.archived),
       review: Boolean(raw.review),
-      nextStep: cleanLine(raw.nextStep || raw.nextAction || "", 200),
+      nextStep: cleanBlock(raw.nextStep || raw.nextAction || "", BLOCK_LIMIT),
       updatedAt: cleanTimestamp(raw.updatedAt),
       owner: cleanLine(raw.owner, 120),
       targetDate: cleanDate(typeof raw.targetDate === "string" ? raw.targetDate : ""),
@@ -599,11 +604,11 @@ function normalizeCheck(raw) {
 
   function cleanUpdate(raw) {
     if (typeof raw === "string") {
-      const text = cleanLine(raw, 500);
+      const text = cleanBlock(raw, BLOCK_LIMIT);
       return text ? { date: "", text } : null;
     }
     if (!raw || typeof raw !== "object") return null;
-    const text = cleanLine(raw.text || raw.comment || "", 500);
+    const text = cleanBlock(raw.text || raw.comment || "", BLOCK_LIMIT);
     if (!text) return null;
     return { date: cleanDate(raw.date || ""), text };
   }
@@ -1638,6 +1643,7 @@ function migrate(saved, version) {
     STARTER_KEY,
     STARTER_VERSION,
     COLORS,
+    BLOCK_LIMIT,
     PHASES,
     CHECK_TYPES,
     SIZES,
