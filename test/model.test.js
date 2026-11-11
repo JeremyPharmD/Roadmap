@@ -187,6 +187,27 @@ test("an update keeps a date and a comment", () => {
   assert.deepEqual(again.updates, moved.updates);
 });
 
+test("an update and a next item keep line breaks", () => {
+  const item = model.normalizeItem({
+    id: "wrap",
+    title: "Wrap",
+    updates: [{ date: "2026-11-11", text: "  Called the vendor.\nThey asked for the form.  " }],
+    nextStep: "Write the note.\nSend it Monday.",
+  });
+  assert.equal(item.updates[0].text, "Called the vendor.\nThey asked for the form.");
+  assert.equal(item.nextStep, "Write the note.\nSend it Monday.");
+  const long = "x".repeat(model.BLOCK_LIMIT + 50);
+  const capped = model.normalizeItem({
+    id: "cap",
+    title: "Cap",
+    updates: [{ date: "2026-11-11", text: long }],
+    nextStep: long,
+  });
+  assert.equal(capped.updates[0].text.length, model.BLOCK_LIMIT);
+  assert.equal(capped.nextStep.length, model.BLOCK_LIMIT);
+  assert.equal(model.normalizeItem({ id: "blank", title: "Blank", updates: [{ text: " \n " }], nextStep: "\n" }).updates.length, 0);
+});
+
 test("a project keeps its notes, size, and short description", () => {
   const item = model.normalizeItem({
     id: "named",

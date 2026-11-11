@@ -22,8 +22,11 @@ const state = {
   addingUpdate: false,
   updateDraft: "",
   updateDate: "",
+  editingUpdateDate: null,
   editingNext: false,
   nextDraft: "",
+  editingSummary: false,
+  summaryDraft: "",
   draft: null,
   blockForm: null,
   blockError: "",
@@ -1341,24 +1344,57 @@ function toolsHtml(item) {
   return `<section><h3>Planning tools</h3><p class="hint">These tables are manual. Future integrations and AI interpretation are not part of this version.</p>${parts.join("")}</section>`;
 }
 
+function blockText(value) {
+  return String(value || "").replace(/\r\n?/g, "\n").trim().slice(0, model.BLOCK_LIMIT);
+}
+
+function noteText(value) {
+  const lines = updateText(bulletDraft(value)).split("\n").filter(Boolean);
+  if (!lines.length) return "";
+  return lines.map((line) => `• ${line}`).join("\n").slice(0, model.BLOCK_LIMIT);
+}
+
+function fitCompose(field) {
+  if (!field) return;
+  field.style.height = "auto";
+  field.style.height = `${field.scrollHeight}px`;
+}
+
+function insertBullet(field) {
+  const start = field.selectionStart ?? field.value.length;
+  const end = field.selectionEnd ?? start;
+  field.value = `${field.value.slice(0, start)}\n• ${field.value.slice(end)}`.slice(0, model.BLOCK_LIMIT);
+  const caret = Math.min(start + 3, field.value.length);
+  field.selectionStart = field.selectionEnd = caret;
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 function updatesHtml(item) {
   const draft = state.addingUpdate
     ? `
-      <li class="update-draft">
-        <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || todayInput())}" aria-label="Update date" />
-        <input class="line-text" type="text" maxlength="500" data-update-draft value="${escapeHtml(state.updateDraft || "")}" placeholder="Comment" aria-label="Update comment" />
-        <button type="button" class="text-save" data-save-update>Save</button>
+      <li class="compose">
+        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-update-draft placeholder="Comment" aria-label="Update comment">${escapeHtml(state.updateDraft || "")}</textarea>
+        <div class="compose-bar">
+          <input class="update-date-input" type="date" data-update-date value="${escapeHtml(state.updateDate || todayInput())}" aria-label="Update date" />
+          <button type="button" class="text-cancel" data-cancel-update>Cancel</button>
+          <button type="button" class="text-save" data-save-update>Save</button>
+        </div>
       </li>
     `
     : "";
   const lines = (item.updates || [])
     .map((entry, index) => {
       const when = formatDateLabel(entry.date);
+      const dateControl = state.editingUpdateDate === index
+        ? `<input class="update-date-input" type="date" data-edit-update-date="${index}" value="${escapeHtml(entry.date || "")}" aria-label="Update date" />`
+        : `<button type="button" class="update-date" data-open-update-date="${index}">${escapeHtml(when || "Add date")}</button>`;
       return `
-        <li class="update-line">
-          ${when ? `<time class="update-date" datetime="${escapeHtml(entry.date)}">${escapeHtml(when)}</time>` : ""}
+        <li class="update-note">
+          <div class="update-meta">
+            ${dateControl}
+            <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
+          </div>
           <span class="update-text">${escapeHtml(entry.text || "")}</span>
-          <button type="button" class="line-x" data-remove-update="${index}" aria-label="Remove update" tabindex="-1">×</button>
         </li>
       `;
     })
@@ -1377,8 +1413,12 @@ function updatesHtml(item) {
 function nextItemHtml(item) {
   const draft = state.editingNext
     ? `
-      <li class="line">
-        <input class="line-text" type="text" maxlength="200" data-next-draft value="${escapeHtml(state.nextDraft || "")}" placeholder="What's next" aria-label="Next item" />
+      <li class="compose">
+        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-next-draft placeholder="What's next" aria-label="Next item">${escapeHtml(state.nextDraft || "")}</textarea>
+        <div class="compose-bar">
+          <button type="button" class="text-cancel" data-cancel-next>Cancel</button>
+          <button type="button" class="text-save" data-save-next>Save</button>
+        </div>
       </li>
     `
     : "";
@@ -1398,6 +1438,39 @@ function nextItemHtml(item) {
         ${plus}
       </div>
       <ul class="line-list">${draft}${saved}</ul>
+    </section>
+  `;
+}
+
+function summaryHtml(item) {
+  const draft = state.editingSummary
+    ? `
+      <div class="compose">
+        <textarea class="compose-text" rows="6" maxlength="${model.BLOCK_LIMIT}" data-summary-draft placeholder="Summary" aria-label="Summary">${escapeHtml(state.summaryDraft || "")}</textarea>
+        <div class="compose-bar">
+          <button type="button" class="text-cancel" data-cancel-summary>Cancel</button>
+          <button type="button" class="text-save" data-save-summary>Save</button>
+        </div>
+      </div>
+    `
+    : "";
+  const saved = !state.editingSummary && item.summary
+    ? `
+      <div class="summary-read">
+        <button type="button" class="summary-body" data-edit-summary>${escapeHtml(item.summary)}</button>
+        <button type="button" class="line-x" data-clear-summary aria-label="Remove summary" tabindex="-1">×</button>
+      </div>
+    `
+    : "";
+  const plus = state.editingSummary || item.summary ? "" : `<button type="button" class="head-plus" data-add-summary aria-label="Add a summary">+</button>`;
+  return `
+    <section class="lines summary-block">
+      <div class="section-head">
+        <h3>Summary</h3>
+        ${plus}
+      </div>
+      ${draft}
+      ${saved}
     </section>
   `;
 }
@@ -1559,6 +1632,7 @@ function insideHtml(item) {
       <label class="stack-field">Name
         <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
+      ${summaryHtml(item)}
       ${sizePicker(item)}
       ${updatesHtml(item)}
       ${nextItemHtml(item)}
@@ -1819,6 +1893,7 @@ function fitOpenWriting() {
     drawer?.querySelectorAll("textarea.bullet-note, textarea.history-note").forEach(fitWriting);
     return;
   }
+  drawer.querySelectorAll(".compose-text").forEach(fitCompose);
   drawer.classList.add("is-sizing");
   const height = measureDrawer(drawer);
   if (height) drawer.style.maxHeight = `${height}px`;
@@ -1860,8 +1935,11 @@ function openProject(id) {
   state.addingUpdate = false;
   state.updateDraft = "";
   state.updateDate = "";
+  state.editingUpdateDate = null;
   state.editingNext = false;
   state.nextDraft = "";
+  state.editingSummary = false;
+  state.summaryDraft = "";
   state.menuOpen = false;
   state.effortMenuId = null;
   state.draft = null;
@@ -2221,12 +2299,63 @@ function moveCheck(id, direction) {
   if (pressed && !pressed.disabled) pressed.focus();
 }
 
+function startSummary() {
+  const item = itemById(state.openId);
+  if (!item || state.editingSummary) return;
+  state.editingSummary = true;
+  state.summaryDraft = item.summary && item.summary.trim() ? item.summary : "• ";
+  render({ focus: "[data-summary-draft]" });
+  const field = document.querySelector("[data-summary-draft]");
+  if (field) field.selectionStart = field.selectionEnd = field.value.length;
+  fitCompose(field);
+  fitOpenWriting();
+}
+
+function cancelSummary() {
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  const item = itemById(state.openId);
+  render({ focus: item?.summary ? ".summary-block h3" : "[data-add-summary]" });
+}
+
+function saveSummary() {
+  const item = itemById(state.openId);
+  const field = document.querySelector("[data-summary-draft]");
+  if (!item || !field) return;
+  item.summary = noteText(field.value);
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  touch(item);
+  save();
+  render({ focus: item.summary ? ".summary-block h3" : "[data-add-summary]" });
+}
+
+function clearSummary() {
+  const item = itemById(state.openId);
+  if (!item) return;
+  item.summary = "";
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  touch(item);
+  save();
+  render({ focus: "[data-add-summary]" });
+}
+
 function startUpdate() {
   if (!itemById(state.openId)) return;
   state.addingUpdate = true;
-  state.updateDraft = "";
+  state.updateDraft = "• ";
   state.updateDate = todayInput();
   render({ focus: "[data-update-draft]" });
+  const field = document.querySelector("[data-update-draft]");
+  if (field) field.selectionStart = field.selectionEnd = field.value.length;
+}
+
+function cancelUpdate() {
+  state.addingUpdate = false;
+  state.updateDraft = "";
+  state.updateDate = "";
+  render({ focus: "[data-add-update-line]" });
 }
 
 function commitUpdate() {
@@ -2234,7 +2363,7 @@ function commitUpdate() {
   const field = document.querySelector("[data-update-draft]");
   const dateField = document.querySelector("[data-update-date]");
   if (!item || !field) return;
-  const text = field.value.replace(/\s+/g, " ").trim().slice(0, 500);
+  const text = noteText(field.value);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : state.updateDate || todayInput();
   state.addingUpdate = false;
   state.updateDraft = "";
@@ -2251,15 +2380,23 @@ function startNext() {
   const item = itemById(state.openId);
   if (!item || state.editingNext || item.nextStep) return;
   state.editingNext = true;
-  state.nextDraft = "";
+  state.nextDraft = "• ";
   render({ focus: "[data-next-draft]" });
+  const field = document.querySelector("[data-next-draft]");
+  if (field) field.selectionStart = field.selectionEnd = field.value.length;
+}
+
+function cancelNext() {
+  state.editingNext = false;
+  state.nextDraft = "";
+  render({ focus: "[data-add-next]" });
 }
 
 function saveNextItem() {
   const item = itemById(state.openId);
   const field = document.querySelector("[data-next-draft]");
   if (!item || !field) return;
-  const text = field.value.replace(/\s+/g, " ").trim().slice(0, 200);
+  const text = noteText(field.value);
   state.editingNext = false;
   state.nextDraft = "";
   if (text) {
@@ -2473,7 +2610,7 @@ function saveOpenCard() {
   if (nextItem) applyText(item, nextItem);
   const nextDraft = root.querySelector("[data-next-draft]");
   if (nextDraft) {
-    const text = nextDraft.value.replace(/\s+/g, " ").trim().slice(0, 200);
+    const text = noteText(nextDraft.value);
     if (text) {
       item.nextStep = text;
       touch(item);
@@ -2481,9 +2618,16 @@ function saveOpenCard() {
     state.editingNext = false;
     state.nextDraft = "";
   }
+  const summaryDraft = root.querySelector("[data-summary-draft]");
+  if (summaryDraft) {
+    item.summary = noteText(summaryDraft.value);
+    touch(item);
+    state.editingSummary = false;
+    state.summaryDraft = "";
+  }
   const updateDraft = root.querySelector("[data-update-draft]");
   if (updateDraft) {
-    const text = updateDraft.value.replace(/\s+/g, " ").trim().slice(0, 500);
+    const text = noteText(updateDraft.value);
     const dateField = root.querySelector("[data-update-date]");
     const date = /^\d{4}-\d{2}-\d{2}$/.test(dateField?.value || "") ? dateField.value : todayInput();
     if (text) {
@@ -3013,20 +3157,12 @@ function applyText(item, target) {
     return true;
   }
   if (field === "summary") {
-    bulletField(target);
-    const limit = 2000;
-    const shown = target.value.slice(0, limit);
-    const stored = updateText(shown) ? shown : "";
-    if (!stored && target.value !== "• ") {
-      target.value = "• ";
-      target.selectionStart = target.selectionEnd = target.value.length;
-    }
-    item[field] = stored;
+    item.summary = target.value.replace(/\r\n?/g, "\n").slice(0, model.BLOCK_LIMIT).trim();
     touch(item);
     return true;
   }
   if (field === "nextStep") {
-    item.nextStep = target.value.slice(0, 200);
+    item.nextStep = target.value.slice(0, model.BLOCK_LIMIT);
     touch(item);
     syncCard(item);
     return true;
@@ -3356,12 +3492,51 @@ document.addEventListener("click", (event) => {
       commitUpdate();
       return;
     }
+    if (event.target.closest("[data-cancel-update]")) {
+      cancelUpdate();
+      return;
+    }
+    if (event.target.closest("[data-add-summary], [data-edit-summary]")) {
+      startSummary();
+      return;
+    }
+    if (event.target.closest("[data-save-summary]")) {
+      saveSummary();
+      return;
+    }
+    if (event.target.closest("[data-cancel-summary]")) {
+      cancelSummary();
+      return;
+    }
+    if (event.target.closest("[data-clear-summary]")) {
+      clearSummary();
+      return;
+    }
     if (event.target.closest("[data-add-next]")) {
       startNext();
       return;
     }
+    if (event.target.closest("[data-save-next]")) {
+      saveNextItem();
+      return;
+    }
+    if (event.target.closest("[data-cancel-next]")) {
+      cancelNext();
+      return;
+    }
     if (event.target.closest("[data-remove-next]")) {
       removeNext();
+      return;
+    }
+    const openDate = event.target.closest("[data-open-update-date]");
+    if (openDate) {
+      const index = Number(openDate.dataset.openUpdateDate);
+      state.editingUpdateDate = index;
+      render({ focus: `[data-edit-update-date="${index}"]` });
+      const field = document.querySelector(`[data-edit-update-date="${index}"]`);
+      if (field && typeof field.showPicker === "function") {
+        try { field.showPicker(); } catch (error) { /* The field stays focused when the picker cannot open. */ }
+      }
       return;
     }
     const removeUpdateButton = event.target.closest("[data-remove-update]");
@@ -3653,6 +3828,19 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.dataset?.editUpdateDate != null) {
+    const item = itemById(state.openId);
+    const at = Number(event.target.dataset.editUpdateDate);
+    const value = event.target.value;
+    if (item?.updates?.[at] && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      item.updates[at].date = value;
+      touch(item);
+      save();
+    }
+    state.editingUpdateDate = null;
+    render();
+    return;
+  }
   const reviewBox = event.target.closest("[data-card-review]");
   if (reviewBox) {
     const item = itemById(reviewBox.dataset.cardReview);
@@ -3864,16 +4052,18 @@ document.addEventListener("input", (event) => {
     if (advance) field.closest(".delivery")?.querySelector("[data-due-day]")?.focus();
     return;
   }
-  if (event.target.dataset?.nextDraft != null) {
-    state.nextDraft = event.target.value.slice(0, 200);
+  if (event.target.dataset?.nextDraft != null || event.target.dataset?.updateDraft != null || event.target.dataset?.summaryDraft != null) {
+    bulletField(event.target);
+    fitCompose(event.target);
+    const value = event.target.value.slice(0, model.BLOCK_LIMIT);
+    if (event.target.dataset.nextDraft != null) state.nextDraft = value;
+    else if (event.target.dataset.summaryDraft != null) state.summaryDraft = value;
+    else state.updateDraft = value;
+    fitOpenWriting();
     return;
   }
   if (event.target.dataset?.updateDate != null) {
     state.updateDate = event.target.value;
-    return;
-  }
-  if (event.target.dataset?.updateDraft != null) {
-    state.updateDraft = event.target.value.slice(0, 500);
     return;
   }
   if (event.target.dataset?.summaryIndex != null || event.target.dataset?.noteIndex != null) {
@@ -3993,6 +4183,12 @@ document.addEventListener("focusout", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.target.dataset?.editUpdateDate != null && event.key === "Escape") {
+    event.preventDefault();
+    state.editingUpdateDate = null;
+    render();
+    return;
+  }
   if (event.target.classList?.contains("title-rename")) {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -4012,27 +4208,29 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  if (event.target.dataset?.nextDraft != null && (event.key === "Enter" || event.key === "Escape")) {
-    event.preventDefault();
+  if (event.target.dataset?.nextDraft != null || event.target.dataset?.updateDraft != null || event.target.dataset?.summaryDraft != null) {
+    const kind = event.target.dataset.nextDraft != null ? "next" : event.target.dataset.summaryDraft != null ? "summary" : "update";
     if (event.key === "Escape") {
-      state.editingNext = false;
-      state.nextDraft = "";
-      render({ focus: "[data-add-next]" });
+      event.preventDefault();
+      if (kind === "next") cancelNext();
+      else if (kind === "summary") cancelSummary();
+      else cancelUpdate();
       return;
     }
-    saveNextItem();
-    return;
-  }
-  if (event.target.dataset?.updateDraft != null && (event.key === "Enter" || event.key === "Escape")) {
-    event.preventDefault();
-    if (event.key === "Escape") {
-      state.addingUpdate = false;
-      state.updateDraft = "";
-      render({ focus: "[data-add-update-line]" });
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      if (kind === "next") saveNextItem();
+      else if (kind === "summary") saveSummary();
+      else commitUpdate();
       return;
     }
-    commitUpdate();
-    return;
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      insertBullet(event.target);
+      fitCompose(event.target);
+      fitOpenWriting();
+      return;
+    }
   }
   if (event.key === "Enter" && event.target.dataset?.checkText) {
     event.preventDefault();
