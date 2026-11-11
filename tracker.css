@@ -94,29 +94,6 @@ button { cursor: pointer; }
   color: var(--cream);
 }
 
-.sections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.sections a {
-  color: rgba(247, 241, 230, 0.78);
-  font-size: 14px;
-  font-weight: 800;
-  text-decoration: none;
-  padding: 6px 12px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-}
-
-.sections a[aria-current="page"] {
-  color: var(--cream);
-  background: rgba(247, 241, 230, 0.14);
-  border-color: rgba(247, 241, 230, 0.4);
-}
-
 .brand {
   display: flex;
   align-items: center;
@@ -155,7 +132,7 @@ button { cursor: pointer; }
 }
 
 .tag {
-  margin: 0;
+  margin: 0 0 0 auto;
   padding: 6px 10px;
   border: 1px solid rgba(247, 241, 230, 0.35);
   border-radius: 999px;

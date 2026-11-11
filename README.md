@@ -20,7 +20,7 @@ A new project is added at the top of the list. Removing a project, checklist lin
 
 ## License matrix
 
-Roadmap and Licenses are separate sections. The header switches between them. `licenses.html` keeps the state-by-state pharmacy breakdown, pharmacist licenses, pharmacy technicians, and accreditations on one matrix. Choosing a row opens that credential on its own, with a way back to the matrix. Status, license number, controlled-substance text, telemedicine and reciprocity flags, and renewal dates sit on the row. Accreditations are added by hand. The page does not seed them.
+The license matrix lives in `licenses/` and is not part of the roadmap page. Open `licenses/index.html`. It keeps the state-by-state pharmacy breakdown, pharmacist licenses, pharmacy technicians, and accreditations on one matrix. Choosing a row opens that credential on its own, with a way back to the matrix. Status, license number, controlled-substance text, telemedicine and reciprocity flags, and renewal dates sit on the row. Accreditations are added by hand. The page does not seed them.
 
 Status uses the sooner of the pharmacy expiration and the controlled-substance expiration. Expired rows, rows inside the reminder lead, suspended rows, and a renewal filed without an expiration date show in the alert list. A filed renewal stays in that list until the driving date is outside the reminder lead. A lapsed date stays expired even if the posture says pending or renewal filed. Inactive rows do not raise an expiration alert. Rows that still need a date are counted, and they are not listed as alerts.
 
