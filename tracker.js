@@ -380,21 +380,9 @@ function stageBadge(item) {
 }
 
 function progressHtml(item) {
-  const steps = item.checklist.length;
-  const done = item.checklist.filter((entry) => entry.done).length;
-  const percent = steps ? model.progressOf(item).percent : 0;
   const letter = effortShort(item);
-  const mark = letter ? `<span class="size-letter">${escapeHtml(letter)}</span>` : "";
-  return `
-    <span class="meter-line">
-      ${mark}
-      <span class="meter" aria-label="${done} of ${steps} work items, ${percent} percent">
-        <span class="track" aria-hidden="true"><span class="fill" style="width:${percent}%"></span></span>
-        <span class="frac">${done}/${steps}</span>
-        <span class="pct">${percent}%</span>
-      </span>
-    </span>
-  `;
+  if (!letter) return "";
+  return `<span class="meter-line"><span class="size-letter" aria-label="Size ${escapeHtml(letter)}">${escapeHtml(letter)}</span></span>`;
 }
 
 function dueParts(value) {
@@ -1353,29 +1341,6 @@ function toolsHtml(item) {
   return `<section><h3>Planning tools</h3><p class="hint">These tables are manual. Future integrations and AI interpretation are not part of this version.</p>${parts.join("")}</section>`;
 }
 
-function tasksHtml(item) {
-  const rows = item.checklist
-    .map(
-      (entry) => `
-        <div class="work-check${entry.done ? " is-done" : ""}">
-          <input type="checkbox" data-check-id="${escapeHtml(entry.id)}" ${entry.done ? "checked" : ""} aria-label="Done: ${escapeHtml(entry.text || "Work item")}" />
-          <input class="work-name" type="text" maxlength="2000" value="${escapeHtml(entry.text)}" data-check-text="${escapeHtml(entry.id)}" aria-label="Work item" />
-          <button type="button" class="work-x" data-remove-check="${escapeHtml(entry.id)}" aria-label="Remove ${escapeHtml(entry.text || "work item")}">×</button>
-        </div>
-      `,
-    )
-    .join("");
-  return `
-    <section class="work-frame">
-      <div class="section-head">
-        <h3>Work items</h3>
-        <button type="button" class="head-plus" data-add-check aria-label="Add a work item">+</button>
-      </div>
-      <div class="work-grid">${rows}</div>
-    </section>
-  `;
-}
-
 function updatesHtml(item) {
   const draft = state.addingUpdate
     ? `
@@ -1595,7 +1560,6 @@ function insideHtml(item) {
         <input class="field name-input" maxlength="2000" data-field="title" value="${escapeHtml(item.title)}" />
       </label>
       ${sizePicker(item)}
-      ${tasksHtml(item)}
       ${updatesHtml(item)}
       ${nextItemHtml(item)}
       <div class="save-row"><button type="button" class="btn primary" data-save-card>Save</button></div>
