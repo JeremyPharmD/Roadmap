@@ -4,7 +4,7 @@
   else root.LicenseModel = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const STORAGE_KEY = "license-matrix";
-  const STORAGE_VERSION = 2;
+  const STORAGE_VERSION = 3;
   const MAX_RECORDS = 500;
   const MAX_IMPORT_CHARS = 1000000;
   const LEAD_MAX = 1095;
@@ -307,20 +307,27 @@
     });
   }
 
-  function initialPlan(saved) {
-    if (saved == null) return { records: stateShell(), settings: defaultSettings() };
+  function seededRecords(seedRecords) {
+    const seeded = Array.isArray(seedRecords) ? seedRecords.map(normalizeRecord).filter(Boolean) : [];
+    return seeded.length ? seeded : stateShell();
+  }
+
+  function initialPlan(saved, seedRecords) {
+    const fallback = seededRecords(seedRecords);
+    if (saved == null) return { records: fallback, settings: defaultSettings() };
     const records = Array.isArray(saved.records) ? saved.records.map(normalizeRecord).filter(Boolean) : [];
     const settings = normalizeSettings(saved.settings);
     const retired = records.length > 0 && records.every((record) => record.id.startsWith("tpl-"));
-    if ((saved.version == null || saved.version === 1) && retired) return { records: stateShell(), settings };
-    if (saved.version == null && !Array.isArray(saved.records)) return { records: stateShell(), settings };
+    if ((saved.version == null || saved.version === 1) && retired) return { records: fallback, settings };
+    if (saved.version == null && !Array.isArray(saved.records)) return { records: fallback, settings };
+    if ((Number(saved.version) || 0) < STORAGE_VERSION && isPristine(records)) return { records: fallback, settings };
     return { records, settings };
   }
 
-  function planFromStorage(data) {
+  function planFromStorage(data, seedRecords) {
     if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false, error: "Saved matrix could not be read." };
     if (data.licenseMatrix != null && data.licenseMatrix !== "credentials") return { ok: false, error: "Saved matrix could not be read." };
-    return { ok: true, plan: initialPlan(data) };
+    return { ok: true, plan: initialPlan(data, seedRecords) };
   }
 
   function reminderLead(record, settings) {

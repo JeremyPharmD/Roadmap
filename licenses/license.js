@@ -61,32 +61,40 @@
     }
   }
 
+  function workbookSeed() {
+    const data = globalThis.LicenseData;
+    return data && Array.isArray(data.records) ? data.records : null;
+  }
+
   function load() {
+    const seed = workbookSeed();
     let raw = null;
     try {
       raw = localStorage.getItem(model.STORAGE_KEY);
     } catch (error) {
       state.error = "This browser could not read the saved matrix.";
-      const plan = model.initialPlan(null);
+      const plan = model.initialPlan(null, seed);
       state.records = plan.records;
       state.settings = plan.settings;
       return;
     }
     if (!raw) {
-      const plan = model.initialPlan(null);
+      const plan = model.initialPlan(null, seed);
       state.records = plan.records;
       state.settings = plan.settings;
       persist();
       return;
     }
     try {
-      const result = model.planFromStorage(JSON.parse(raw));
+      const saved = JSON.parse(raw);
+      const result = model.planFromStorage(saved, seed);
       if (!result.ok) {
         state.recovery = raw;
         return;
       }
       state.records = result.plan.records;
       state.settings = result.plan.settings;
+      if ((Number(saved.version) || 0) < model.STORAGE_VERSION) persist();
     } catch (error) {
       state.recovery = raw;
     }
@@ -244,7 +252,7 @@
     if (model.isPristine(state.records)) {
       intro.push(el("p", {
         class: "missing",
-        text: "The 51 rows are an empty state list, one pharmacy license for each state and Washington DC. Import the W2 workbook to fill the sheet: phone, telemedicine, reciprocity, SOS, resident agent, applied, controlled substance, issued, renewed, and notes. Usernames and passwords in that workbook are ignored.",
+        text: "These rows are still blank. Import the W2 workbook to fill phone, telemedicine, reciprocity, SOS, resident agent, applied, controlled substance, issued, renewed, and notes. Usernames and passwords in that workbook are ignored.",
       }));
     } else if (quietMissing) {
       intro.push(el("p", {
@@ -879,7 +887,7 @@
         paint();
         return;
       }
-      const plan = model.initialPlan(null);
+      const plan = model.initialPlan(null, workbookSeed());
       state.records = plan.records;
       state.settings = plan.settings;
       state.recovery = "";
