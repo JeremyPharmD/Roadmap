@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2a2420" />
+    <title>License matrix</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="license.css?v=4" />
+  </head>
+  <body>
+    <a class="skip" href="#matrix">Skip to the matrix</a>
+    <header class="bar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true"></span>
+        <div class="titles">
+          <h1>Licenses</h1>
+          <p>State licenses, pharmacists, and technicians</p>
+        </div>
+      </div>
+      <p class="tag">Track · Remind · Renew</p>
+    </header>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="recovery" class="recovery" hidden></div>
+    <main id="app"></main>
+    <script src="license-model.js?v=2"></script>
+    <script src="license-workbook.js?v=1"></script>
+    <script src="license.js?v=3"></script>
+  </body>
+</html>
