@@ -148,7 +148,7 @@ button { cursor: pointer; }
 
 main { padding: 8px 20px calc(36px + env(safe-area-inset-bottom)); }
 
-.page-intro { max-width: 68rem; margin: 8px 0 14px; }
+.page-intro { margin: 4px 0 8px; }
 
 .page-intro h2 {
   margin: 0;
@@ -177,28 +177,29 @@ main { padding: 8px 20px calc(36px + env(safe-area-inset-bottom)); }
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-  margin: 14px 0;
+  margin: 0;
 }
 
 .stat {
-  padding: 10px 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--card);
-  text-align: left;
+  text-align: center;
 }
 
 .stat strong {
-  display: block;
-  font-size: 22px;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .stat span {
-  display: block;
-  margin-top: 2px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
@@ -259,14 +260,14 @@ main { padding: 8px 20px calc(36px + env(safe-area-inset-bottom)); }
 
 .alert.is-expired .when, .alert.is-suspended .when { color: var(--error); }
 
-.alerts { max-height: 280px; overflow: auto; }
+.alerts { max-height: 96px; overflow: auto; }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 14px 0 10px;
+  margin: 8px 0;
 }
 
 .search {
@@ -312,52 +313,38 @@ select.field, .toolbar select {
   background: #fff;
 }
 
-.matrix-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.matrix-scroll { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 
 .matrix {
   width: 100%;
-  min-width: 1680px;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: 14px;
-}
-
-.matrix caption {
-  caption-side: top;
-  padding: 12px 12px 8px;
-  text-align: left;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-size: 12px;
 }
 
 .matrix th, .matrix td {
-  padding: 8px 10px;
+  width: calc(100% / 19);
+  padding: 4px 5px;
   border-top: 1px solid var(--line);
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   background: var(--card);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .matrix th {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--muted);
-  white-space: nowrap;
 }
 
 .cs, .sub { font-weight: 700; letter-spacing: 0.04em; }
 .sub { display: block; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .flags { max-width: 12rem; }
-
-.matrix td:first-child, .matrix th:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-}
 
 .matrix tbody tr:hover td { background: #fff; }
 
@@ -366,32 +353,36 @@ select.field, .toolbar select {
 .matrix tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
 
 .name-btn {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--accent);
   font-weight: 800;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nowrap, .days, .when { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-.matrix .notes {
-  min-width: 14rem;
-  max-width: 22rem;
-  white-space: normal;
-}
-
 .pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 1px 8px;
+  display: inline-block;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0 4px;
   border-radius: 999px;
   background: var(--line);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .pill.expired, .pill.suspended { background: var(--error-tint); color: var(--error); }
