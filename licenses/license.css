@@ -316,7 +316,7 @@ select.field, .toolbar select {
 
 .matrix {
   width: 100%;
-  min-width: 980px;
+  min-width: 1680px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -375,6 +375,12 @@ select.field, .toolbar select {
 }
 
 .nowrap, .days, .when { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.matrix .notes {
+  min-width: 14rem;
+  max-width: 22rem;
+  white-space: normal;
+}
 
 .pill {
   display: inline-flex;
