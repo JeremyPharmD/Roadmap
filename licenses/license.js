@@ -143,20 +143,20 @@
     return `${MONTHS[Number(month) - 1]} ${Number(day)}, ${year}`;
   }
 
-  function flagText(record) {
-    const parts = [];
-    if (record.telemedicine === "asynchronous") parts.push("Async");
-    else if (record.telemedicine === "yes") parts.push("Telemed");
-    if (record.reciprocity === "yes") parts.push("Recip");
-    if (record.sos === "yes") parts.push("SOS");
-    if (record.residentAgent === "yes") parts.push("Agent");
-    return parts.join(" · ");
+  function yesNoText(value) {
+    if (value === "yes") return "Yes";
+    if (value === "no") return "No";
+    return "";
   }
 
-  function renewalText(record) {
-    if (record.renewed) return formatShort(record.renewed);
-    if (record.renewalSubmitted) return `Submitted ${formatShort(record.renewalSubmitted)}`;
-    return "";
+  function telemedText(value) {
+    if (value === "asynchronous") return "Asynchronous";
+    return yesNoText(value);
+  }
+
+  function shown(value) {
+    const text = String(value || "").trim();
+    return text || "—";
   }
 
   async function inflateRaw(bytes) {
@@ -244,7 +244,7 @@
     if (model.isPristine(state.records)) {
       intro.push(el("p", {
         class: "missing",
-        text: "The 51 rows are an empty state list, one pharmacy license for each state and Washington DC. Import the W2 workbook to fill license numbers, pharmacists, and technicians. Usernames and passwords in that workbook are ignored.",
+        text: "The 51 rows are an empty state list, one pharmacy license for each state and Washington DC. Import the W2 workbook to fill the sheet: phone, telemedicine, reciprocity, SOS, resident agent, applied, controlled substance, issued, renewed, and notes. Usernames and passwords in that workbook are ignored.",
       }));
     } else if (quietMissing) {
       intro.push(el("p", {
@@ -303,7 +303,7 @@
         id: "search",
         class: "search",
         type: "search",
-        placeholder: "Search name, holder, number, or state",
+        placeholder: "Search name, holder, number, state, phone, or notes",
         value: state.filter.query,
         autocomplete: "off",
       }),
@@ -326,10 +326,11 @@
   }
 
   function renderTable(rows) {
-    const head = el("tr", {}, ["Status", "Kind", "State", "Who", "Number", "Expires", "Days", "Controlled", "Flags", "Renewal"].map((label) => el("th", { scope: "col", text: label })));
+    const columns = ["Status", "Kind", "State", "Who", "Number", "Phone", "Telemedicine", "Reciprocity", "SOS", "Resident agent", "Applied", "Controlled", "Issued", "Expires", "Days", "Renewed", "Renewal start", "Submitted", "Notes"];
+    const head = el("tr", {}, columns.map((label) => el("th", { scope: "col", text: label })));
     const body = el("tbody");
     if (!rows.length) {
-      const cell = el("td", { class: "empty", colspan: "10", text: state.records.length ? "Nothing matches this filter." : "The matrix is empty." });
+      const cell = el("td", { class: "empty", colspan: String(columns.length), text: state.records.length ? "Nothing matches this filter." : "The matrix is empty." });
       body.append(el("tr", {}, [cell]));
     }
     for (const row of rows) {
@@ -358,13 +359,22 @@
           }[record.kind] ? el("span", { class: "sub", text: record.name }) : null,
         ]),
         el("td", {}, [where ? opener : "—"]),
-        el("td", {}, [where ? (who || "—") : opener]),
-        el("td", { class: "nowrap", text: record.number || "—" }),
+        el("td", {}, [where ? shown(who) : opener]),
+        el("td", { class: "nowrap", text: shown(record.number) }),
+        el("td", { class: "nowrap", text: shown(record.phone) }),
+        el("td", { text: shown(telemedText(record.telemedicine)) }),
+        el("td", { text: shown(yesNoText(record.reciprocity)) }),
+        el("td", { text: shown(yesNoText(record.sos)) }),
+        el("td", { text: shown(yesNoText(record.residentAgent)) }),
+        el("td", { text: shown(record.applied) }),
+        el("td", { text: shown(record.controlled) }),
+        el("td", { class: "nowrap", text: formatShort(record.issued) }),
         expires,
         el("td", { class: "days", text: model.daysLabel(row.status.days) }),
-        el("td", { text: record.controlled || "—" }),
-        el("td", { class: "flags", text: flagText(record) || "—" }),
-        el("td", { class: "nowrap", text: renewalText(record) || "—" }),
+        el("td", { class: "nowrap", text: formatShort(record.renewed) }),
+        el("td", { class: "nowrap", text: formatShort(record.renewalStart) }),
+        el("td", { class: "nowrap", text: formatShort(record.renewalSubmitted) }),
+        el("td", { class: "notes", text: shown(record.notes) }),
       ]));
     }
     return el("div", { id: "matrix-scroll", class: "matrix-scroll" }, [
