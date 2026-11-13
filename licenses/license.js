@@ -61,32 +61,40 @@
     }
   }
 
+  function workbookSeed() {
+    const data = globalThis.LicenseData;
+    return data && Array.isArray(data.records) ? data.records : null;
+  }
+
   function load() {
+    const seed = workbookSeed();
     let raw = null;
     try {
       raw = localStorage.getItem(model.STORAGE_KEY);
     } catch (error) {
       state.error = "This browser could not read the saved matrix.";
-      const plan = model.initialPlan(null);
+      const plan = model.initialPlan(null, seed);
       state.records = plan.records;
       state.settings = plan.settings;
       return;
     }
     if (!raw) {
-      const plan = model.initialPlan(null);
+      const plan = model.initialPlan(null, seed);
       state.records = plan.records;
       state.settings = plan.settings;
       persist();
       return;
     }
     try {
-      const result = model.planFromStorage(JSON.parse(raw));
+      const saved = JSON.parse(raw);
+      const result = model.planFromStorage(saved, seed);
       if (!result.ok) {
         state.recovery = raw;
         return;
       }
       state.records = result.plan.records;
       state.settings = result.plan.settings;
+      if ((Number(saved.version) || 0) < model.STORAGE_VERSION) persist();
     } catch (error) {
       state.recovery = raw;
     }
@@ -140,7 +148,7 @@
   function formatShort(iso) {
     if (!model.cleanDate(iso)) return "—";
     const [year, month, day] = iso.split("-");
-    return `${MONTHS[Number(month) - 1]} ${Number(day)}, ${year}`;
+    return `${Number(month)}/${Number(day)}/${year.slice(2)}`;
   }
 
   function yesNoText(value) {
@@ -225,35 +233,8 @@
     }, [el("strong", { text: String(count) }), el("span", { text: label })]);
   }
 
-  function renderSummary(summary, quietMissing) {
-    const kindLine = [
-      `${summary.byKind.state} state ${summary.byKind.state === 1 ? "license" : "licenses"}`,
-      `${summary.byKind.pharmacist} pharmacist ${summary.byKind.pharmacist === 1 ? "license" : "licenses"}`,
-      `${summary.byKind.technician} ${summary.byKind.technician === 1 ? "technician" : "technicians"}`,
-      `${summary.byKind.accreditation} ${summary.byKind.accreditation === 1 ? "accreditation" : "accreditations"}`,
-    ].join(" · ");
-    const intro = [
-      el("h2", { text: "Master matrix" }),
-      el("p", {
-        class: "intro",
-        text: "State licenses, pharmacist licenses, pharmacy technicians, and accreditations. Status uses the sooner of the license expiration and the controlled-substance date. Alerts stay on this page. Nothing is emailed, and this page does not file a renewal with a board.",
-      }),
-      el("p", { class: "asof", text: `Status as of ${model.formatLong(today())}.` }),
-      el("p", { class: "kind-count", text: kindLine }),
-    ];
-    if (model.isPristine(state.records)) {
-      intro.push(el("p", {
-        class: "missing",
-        text: "The 51 rows are an empty state list, one pharmacy license for each state and Washington DC. Import the W2 workbook to fill the sheet: phone, telemedicine, reciprocity, SOS, resident agent, applied, controlled substance, issued, renewed, and notes. Usernames and passwords in that workbook are ignored.",
-      }));
-    } else if (quietMissing) {
-      intro.push(el("p", {
-        class: "missing",
-        text: `${quietMissing} ${quietMissing === 1 ? "credential has" : "credentials have"} no expiration date, so no reminder is running.`,
-      }));
-    }
+  function renderSummary(summary) {
     return el("div", { class: "page-intro" }, [
-      ...intro,
       el("div", { class: "stats" }, [
         statButton("attention", "Attention", summary.groups.attention, true),
         statButton("expired", "Expired", summary.groups.expired, true),
@@ -303,7 +284,7 @@
         id: "search",
         class: "search",
         type: "search",
-        placeholder: "Search name, holder, number, state, phone, or notes",
+        placeholder: "Search",
         value: state.filter.query,
         autocomplete: "off",
       }),
@@ -325,9 +306,37 @@
     return el("div", { class: "toolbar" }, tools);
   }
 
+  function clipCell(value, child) {
+    const text = value == null || value === "" ? "—" : String(value);
+    const attrs = { title: text === "—" ? "" : text };
+    if (child) return el("td", attrs, [child]);
+    attrs.text = text;
+    return el("td", attrs);
+  }
+
   function renderTable(rows) {
-    const columns = ["Status", "Kind", "State", "Who", "Number", "Phone", "Telemedicine", "Reciprocity", "SOS", "Resident agent", "Applied", "Controlled", "Issued", "Expires", "Days", "Renewed", "Renewal start", "Submitted", "Notes"];
-    const head = el("tr", {}, columns.map((label) => el("th", { scope: "col", text: label })));
+    const columns = [
+      ["Status", "Status"],
+      ["Kind", "Kind"],
+      ["State", "State"],
+      ["Who", "Who"],
+      ["Number", "License number"],
+      ["Phone", "Board phone"],
+      ["Tele", "Telemedicine"],
+      ["Recip", "Reciprocity"],
+      ["SOS", "Secretary of state"],
+      ["Agent", "Resident agent"],
+      ["Applied", "Applied"],
+      ["CS", "Controlled substance"],
+      ["Issued", "Issued"],
+      ["Expires", "Expires"],
+      ["Days", "Days remaining"],
+      ["Renewed", "Renewed on"],
+      ["Start", "Renewal start"],
+      ["Filed", "Renewal submitted"],
+      ["Notes", "Notes"],
+    ];
+    const head = el("tr", {}, columns.map(([label, title]) => el("th", { scope: "col", title, text: label })));
     const body = el("tbody");
     if (!rows.length) {
       const cell = el("td", { class: "empty", colspan: String(columns.length), text: state.records.length ? "Nothing matches this filter." : "The matrix is empty." });
@@ -337,49 +346,59 @@
       const record = row.record;
       const where = model.jurisdictionLabel(record.jurisdiction);
       const who = model.holderLabel(record);
+      const place = where || who || record.name || "Credential";
       const opener = el("button", {
         class: "name-btn",
         "data-action": "open",
         "data-id": record.id,
-        text: where || who || record.name || "Credential",
+        title: place,
+        text: place,
       });
-      const expires = el("td", { class: "nowrap" }, [
-        formatShort(row.status.date),
-        row.status.source === "controlled" && row.status.date ? el("span", { class: "cs", text: " CS" }) : null,
-      ]);
+      const kindName = {
+        state: "Pharmacy license",
+        pharmacist: "Pharmacist license",
+        technician: "Pharmacy technician",
+        accreditation: "Accreditation",
+      }[record.kind];
+      const kind = KIND_SHORT[record.kind] || "";
+      const kindTitle = record.name && record.name !== kindName ? `${kind} · ${record.name}` : kind;
+      const expires = formatShort(row.status.date);
+      const expiresLabel = row.status.source === "controlled" && row.status.date ? `${expires} CS` : expires;
+      const statusShort = {
+        expired: "Expired",
+        expiring: "Soon",
+        "renewal-due": "Due",
+        suspended: "Hold",
+        "needs-date": "No date",
+        pending: "Pending",
+        "renewal-filed": "Filed",
+        current: "Current",
+        inactive: "Off",
+      }[row.status.id] || row.status.label;
       body.append(el("tr", { "data-id": record.id, class: state.openId === record.id ? `is-open is-${row.status.id}` : `is-${row.status.id}` }, [
-        el("td", {}, [el("span", { class: `pill ${row.status.id}`, text: row.status.label })]),
-        el("td", {}, [
-          KIND_SHORT[record.kind] || "",
-          record.name && record.name !== {
-            state: "Pharmacy license",
-            pharmacist: "Pharmacist license",
-            technician: "Pharmacy technician",
-            accreditation: "Accreditation",
-          }[record.kind] ? el("span", { class: "sub", text: record.name }) : null,
-        ]),
-        el("td", {}, [where ? opener : "—"]),
-        el("td", {}, [where ? shown(who) : opener]),
-        el("td", { class: "nowrap", text: shown(record.number) }),
-        el("td", { class: "nowrap", text: shown(record.phone) }),
-        el("td", { text: shown(telemedText(record.telemedicine)) }),
-        el("td", { text: shown(yesNoText(record.reciprocity)) }),
-        el("td", { text: shown(yesNoText(record.sos)) }),
-        el("td", { text: shown(yesNoText(record.residentAgent)) }),
-        el("td", { text: shown(record.applied) }),
-        el("td", { text: shown(record.controlled) }),
-        el("td", { class: "nowrap", text: formatShort(record.issued) }),
-        expires,
-        el("td", { class: "days", text: model.daysLabel(row.status.days) }),
-        el("td", { class: "nowrap", text: formatShort(record.renewed) }),
-        el("td", { class: "nowrap", text: formatShort(record.renewalStart) }),
-        el("td", { class: "nowrap", text: formatShort(record.renewalSubmitted) }),
-        el("td", { class: "notes", text: shown(record.notes) }),
+        clipCell(row.status.label, el("span", { class: `pill ${row.status.id}`, text: statusShort })),
+        clipCell(kindTitle, el("span", { text: kind })),
+        clipCell(where || "—", where ? opener : null),
+        clipCell(where ? shown(who) : place, where ? null : opener),
+        clipCell(shown(record.number)),
+        clipCell(shown(record.phone)),
+        clipCell(shown(telemedText(record.telemedicine))),
+        clipCell(shown(yesNoText(record.reciprocity))),
+        clipCell(shown(yesNoText(record.sos))),
+        clipCell(shown(yesNoText(record.residentAgent))),
+        clipCell(shown(record.applied)),
+        clipCell(shown(record.controlled)),
+        clipCell(formatShort(record.issued)),
+        clipCell(expiresLabel),
+        clipCell(model.daysLabel(row.status.days), el("span", { text: row.status.days == null ? "—" : String(row.status.days) })),
+        clipCell(formatShort(record.renewed)),
+        clipCell(formatShort(record.renewalStart)),
+        clipCell(formatShort(record.renewalSubmitted)),
+        clipCell(shown(record.notes)),
       ]));
     }
     return el("div", { id: "matrix-scroll", class: "matrix-scroll" }, [
       el("table", { id: "matrix", class: "matrix" }, [
-        el("caption", { text: "Master credential matrix" }),
         el("thead", {}, [head]),
         body,
       ]),
@@ -546,7 +565,6 @@
     const rows = model.matrixRows(state.records, current, state.settings, state.filter);
     const attention = model.alerts(state.records, current, state.settings);
     const upcoming = attention.length ? null : model.nextExpiration(state.records, current, state.settings);
-    const quietMissing = model.matrixRows(state.records, current, state.settings, { group: "needs-date" }).filter((row) => !row.status.attention).length;
     const record = openRecord();
     if (record) {
       document.getElementById("app").replaceChildren(renderEditor(record));
@@ -554,7 +572,7 @@
     }
     const layout = el("div", { class: "layout" }, [
       el("div", { class: "primary" }, [
-        renderSummary(summary, quietMissing),
+        renderSummary(summary),
         renderAlerts(attention, upcoming),
         renderToolbar(),
         renderTable(rows),
@@ -879,7 +897,7 @@
         paint();
         return;
       }
-      const plan = model.initialPlan(null);
+      const plan = model.initialPlan(null, workbookSeed());
       state.records = plan.records;
       state.settings = plan.settings;
       state.recovery = "";

@@ -42,6 +42,18 @@ test("a fresh matrix is the state breakdown without license numbers", () => {
   assert.equal(retired.records.some((entry) => entry.number === "HP-1"), false);
 });
 
+test("a blank saved matrix takes a workbook seed once", () => {
+  const seed = [record({ id: "shell-AL", number: "NR-000000", jurisdiction: "AL", holder: "Example Pharmacy" })];
+  const blank = model.initialPlan({ version: 2, records: model.stateShell(), settings: {} }, seed);
+  assert.equal(blank.records.length, 1);
+  assert.equal(blank.records[0].number, "NR-000000");
+  const keptBlank = model.initialPlan({ version: 3, records: model.stateShell(), settings: {} }, seed);
+  assert.equal(keptBlank.records[0].number, "");
+  assert.equal(keptBlank.records.length, 51);
+  const edited = model.initialPlan({ version: 2, records: [record({ number: "KEEP-1" })], settings: {} }, seed);
+  assert.equal(edited.records[0].number, "KEEP-1");
+});
+
 test("a saved empty matrix stays empty and edits survive a reload", () => {
   assert.deepEqual(model.initialPlan({ version: 1, records: [], settings: {} }).records, []);
   const kept = record({ notes: "Board file 14\nSecond line", reminderDays: 45, profileId: "EP-000000" });
