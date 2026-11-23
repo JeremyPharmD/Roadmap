@@ -494,6 +494,31 @@ test("horizons are not dated until a baseline exists, and commitment gaps stay v
   assert.equal(money.amount, null);
 });
 
+test("the excel workbook keeps the project, its update, and the next item", () => {
+  const xml = model.workbookXml([model.normalizeItem({
+    id: "keep",
+    title: "Compliance & support",
+    summary: "Shared summary",
+    size: "medium",
+    targetDate: "2026-11-04",
+    updates: [{ date: "2026-11-20", text: "• First\n• Second" }],
+    nextStep: "• Call",
+    archived: false,
+  }), model.normalizeItem({
+    id: "old",
+    title: "Archived plan",
+    archived: true,
+  })]);
+  assert.match(xml, /Compliance &amp; support/);
+  assert.match(xml, /Medium/);
+  assert.match(xml, /Nov 4, 2026/);
+  assert.match(xml, /Nov 20, 2026/);
+  assert.match(xml, /• First&#10;• Second/);
+  assert.match(xml, /• Call/);
+  assert.match(xml, /Archived plan/);
+  assert.match(xml, /<Data ss:Type="String">1<\/Data>/);
+});
+
 test("a gzip share payload keeps the list that was exported", () => {
   const { gzipSync, gunzipSync } = require("node:zlib");
   const items = [model.normalizeItem({

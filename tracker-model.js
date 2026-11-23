@@ -1638,6 +1638,68 @@ function migrate(saved, version) {
     return { ok: true, items, recommendations, settings };
   }
 
+  function xmlText(value) {
+    return String(value ?? "")
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function sheetCell(value, style) {
+    const text = xmlText(value).replace(/\r\n?/g, "\n").replace(/\n/g, "&#10;");
+    const styleAttr = style ? ` ss:StyleID="${style}"` : "";
+    return `<Cell${styleAttr}><Data ss:Type="String">${text}</Data></Cell>`;
+  }
+
+  function sheetDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+    if (!match) return "";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[Number(match[2]) - 1]} ${Number(match[3])}, ${match[1]}`;
+  }
+
+  function workbookXml(items) {
+    const list = Array.isArray(items) ? items.filter(Boolean) : [];
+    const active = list.filter((item) => !item.archived);
+    const headers = ["Priority", "Project", "Size", "Due date", "Summary", "Updates", "Next item"];
+    const rows = [...active, ...list.filter((item) => item.archived)].map((item) => {
+      const updates = (item.updates || [])
+        .map((entry) => [sheetDate(entry.date), entry.text || ""].filter(Boolean).join("\n"))
+        .filter(Boolean)
+        .join("\n\n");
+      const size = SIZES.find((entry) => entry.id === item.size)?.label || "";
+      return [
+        item.archived ? "" : String(active.indexOf(item) + 1),
+        item.title || "New project",
+        size,
+        sheetDate(item.targetDate),
+        item.summary || "",
+        updates,
+        item.nextStep || "",
+      ];
+    });
+    const headerRow = `<Row>${headers.map((label) => sheetCell(label, "header")).join("")}</Row>`;
+    const body = rows.map((row) => `<Row>${row.map((value) => sheetCell(value, "wrap")).join("")}</Row>`).join("");
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="header"><Font ss:Bold="1"/></Style>
+  <Style ss:ID="wrap"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Roadmap">
+  <Table>
+   <Column ss:Width="50"/><Column ss:Width="220"/><Column ss:Width="90"/><Column ss:Width="100"/><Column ss:Width="280"/><Column ss:Width="360"/><Column ss:Width="280"/>
+   ${headerRow}
+   ${body}
+  </Table>
+ </Worksheet>
+</Workbook>
+`;
+  }
+
   return {
     STORAGE_KEY,
     STARTER_KEY,
@@ -1672,6 +1734,7 @@ function migrate(saved, version) {
     nextThree,
     exportDocument,
     parseImport,
+    workbookXml,
     duplicateProject,
     budgetSummary,
     annualAmount,

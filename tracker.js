@@ -672,7 +672,7 @@ function renderList() {
           <p class="intro">Drag a card to change the order. This order is the priority.</p>
         </div>
         <div class="page-actions">
-          <button type="button" class="btn secondary" data-export-list>Download</button>
+          <button type="button" class="btn secondary" data-export-list>Excel</button>
           <button type="button" class="btn secondary" data-import-list>Open file</button>
           <button type="button" class="btn primary" data-add-project>+ New project</button>
         </div>
@@ -3203,16 +3203,16 @@ function columnAt(x) {
 }
 
 function exportList() {
-  const blob = new Blob([JSON.stringify(model.exportDocument(state.items, state.recommendations, state.settings), null, 2)], { type: "application/json" });
+  const blob = new Blob([model.workbookXml(state.items)], { type: "application/vnd.ms-excel" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "roadmap.json";
+  link.download = "roadmap.xls";
   document.body.append(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  setStatus("Downloaded roadmap.json. Send that file.", { sticky: true });
+  setStatus("Downloaded roadmap.xls. Open it in Excel.", { sticky: true });
 }
 
 function readImport(file) {
