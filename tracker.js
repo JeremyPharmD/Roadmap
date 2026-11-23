@@ -327,6 +327,147 @@ function load() {
   else setStatus("This browser can't store the list.", { error: true });
 }
 
+function sharePayload() {
+  const match = /^#s=(.+)$/.exec(location.hash);
+  return match ? match[1] : "";
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(payload) {
+  const padded = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function encodeShare(text) {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  return bytesToBase64Url(bytes);
+}
+
+async function decodeShare(payload) {
+  if (payload.length > 1_000_000) throw new Error("too large");
+  const stream = new Blob([base64UrlToBytes(payload)]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const text = await new Response(stream).text();
+  if (text.length > 2_000_000) throw new Error("too large");
+  return text;
+}
+
+function applyImported(result) {
+  undo = null;
+  state.items = result.items;
+  state.recommendations = result.recommendations;
+  state.settings = result.settings;
+  state.openId = null;
+  state.view = "projects";
+  state.editingJournalId = null;
+  state.addingUpdate = false;
+  state.updateDraft = "";
+  state.editingUpdateDate = null;
+  state.editingUpdateIndex = null;
+  state.editingNext = false;
+  state.nextDraft = "";
+  state.editingSummary = false;
+  state.summaryDraft = "";
+  state.renamingId = null;
+  commit();
+}
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch (error) {
+    const field = document.createElement("textarea");
+    field.value = value;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.left = "-9999px";
+    document.body.append(field);
+    field.select();
+    let copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch (copyError) {
+      copied = false;
+    }
+    field.remove();
+    return copied;
+  }
+}
+
+let sharing = false;
+
+async function shareList() {
+  if (sharing) return;
+  if (!state.items.length) {
+    setStatus("Add a project before sharing this list.", { error: true, sticky: true });
+    return;
+  }
+  sharing = true;
+  const button = document.querySelector("[data-share-list]");
+  if (button) button.disabled = true;
+  const urlPromise = encodeShare(JSON.stringify(model.exportDocument(state.items, state.recommendations, state.settings))).then((encoded) => {
+    const url = `${location.origin}${location.pathname}${location.search}#s=${encoded}`;
+    if (url.length > 1_000_000) throw new Error("large");
+    history.replaceState(null, "", `#s=${encoded}`);
+    return url;
+  });
+  let copied = false;
+  try {
+    if (navigator.clipboard?.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": urlPromise.then((url) => new Blob([url], { type: "text/plain" })) })]);
+      copied = true;
+    }
+  } catch (error) {
+    copied = false;
+  }
+  try {
+    const url = await urlPromise;
+    if (!copied) copied = await copyText(url);
+    setStatus(copied ? "Share link copied. Anyone who opens it gets this list." : "The share link is in the address bar. Copy that.", { sticky: true });
+  } catch (error) {
+    setStatus(error?.message === "large" ? "This list is too large to put in a link." : "Could not create a share link.", { error: true, sticky: true });
+  } finally {
+    sharing = false;
+    if (button) button.disabled = false;
+  }
+}
+
+async function openSharedList(payload) {
+  setStatus("Opening the shared list…");
+  try {
+    const result = model.parseImport(await decodeShare(payload));
+    if (!result.ok) throw new Error(result.error);
+    applyImported(result);
+    render();
+    setStatus("Opened the shared list. It is saved on this browser.", { sticky: true });
+  } catch (error) {
+    load();
+    render();
+    setStatus("This share link could not be opened. Showing the list saved on this browser.", { error: true, sticky: true });
+  }
+}
+
+function boot() {
+  const payload = sharePayload();
+  if (payload) {
+    openSharedList(payload);
+    return;
+  }
+  load();
+  render();
+}
+
 function meterHtml(item) {
   const steps = item.checklist.length;
   const done = item.checklist.filter((entry) => entry.done).length;
@@ -530,7 +671,10 @@ function renderList() {
           <h2>Project roadmap</h2>
           <p class="intro">Drag a card to change the order. This order is the priority.</p>
         </div>
-        <button type="button" class="btn primary" data-add-project>+ New project</button>
+        <div class="page-actions">
+          <button type="button" class="btn secondary" data-share-list>Share</button>
+          <button type="button" class="btn primary" data-add-project>+ New project</button>
+        </div>
       </header>
       <div id="list">${list}</div>
       ${archivedHtml}
@@ -3484,6 +3628,10 @@ document.addEventListener("click", (event) => {
       render({ focus: `[data-toggle-category="${CSS.escape(id)}"]` });
       return;
     }
+    if (event.target.closest("[data-share-list]")) {
+      shareList();
+      return;
+    }
     if (event.target.closest("[data-add-project]")) {
       addProject();
       return;
@@ -4365,5 +4513,8 @@ desktopQuery.addEventListener("change", () => {
   if (state.openId) render();
 });
 
-load();
-render();
+boot();
+window.addEventListener("hashchange", () => {
+  const payload = sharePayload();
+  if (payload) openSharedList(payload);
+});

@@ -494,6 +494,27 @@ test("horizons are not dated until a baseline exists, and commitment gaps stay v
   assert.equal(money.amount, null);
 });
 
+test("a gzip share payload keeps the list that was exported", () => {
+  const { gzipSync, gunzipSync } = require("node:zlib");
+  const items = [model.normalizeItem({
+    ...savedItem(),
+    summary: "Shared summary",
+    updates: [{ date: "2026-11-20", text: "• First\n• Second" }],
+    nextStep: "• Call\n• Write",
+  })];
+  const raw = JSON.stringify(model.exportDocument(items, [], { baselineDate: "2026-11-01" }));
+  const payload = gzipSync(Buffer.from(raw)).toString("base64url");
+  const parsed = model.parseImport(gunzipSync(Buffer.from(payload, "base64url")).toString());
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.items.length, 1);
+  assert.equal(parsed.items[0].title, "Compliance support");
+  assert.equal(parsed.items[0].summary, "Shared summary");
+  assert.equal(parsed.items[0].updates[0].date, "2026-11-20");
+  assert.equal(parsed.items[0].updates[0].text, "• First\n• Second");
+  assert.equal(parsed.items[0].nextStep, "• Call\n• Write");
+  assert.equal(parsed.settings.baselineDate, "2026-11-01");
+});
+
 test("the modules start without a chosen size or finished tasks", () => {
   const plan = model.migratePlan([], null);
   const phaseOne = plan.projects.find((item) => item.id === "independence-vesta-rx-phase-one");
