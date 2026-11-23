@@ -672,7 +672,8 @@ function renderList() {
           <p class="intro">Drag a card to change the order. This order is the priority.</p>
         </div>
         <div class="page-actions">
-          <button type="button" class="btn secondary" data-share-list>Share</button>
+          <button type="button" class="btn secondary" data-export-list>Download</button>
+          <button type="button" class="btn secondary" data-import-list>Open file</button>
           <button type="button" class="btn primary" data-add-project>+ New project</button>
         </div>
       </header>
@@ -3206,10 +3207,27 @@ function exportList() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "pocket-work-tracker.json";
+  link.download = "roadmap.json";
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
-  if (!undo) setStatus("Exported a backup of this list.", { sticky: true });
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setStatus("Downloaded roadmap.json. Send that file.", { sticky: true });
+}
+
+function readImport(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const result = model.parseImport(String(reader.result || ""));
+    if (!result.ok) {
+      setStatus(result.error || "That file could not be opened.", { error: true, sticky: true });
+      return;
+    }
+    askImport(result);
+  };
+  reader.onerror = () => setStatus("That file could not be opened.", { error: true, sticky: true });
+  reader.readAsText(file);
 }
 
 function downloadRaw() {
@@ -3630,6 +3648,14 @@ document.addEventListener("click", (event) => {
     }
     if (event.target.closest("[data-share-list]")) {
       shareList();
+      return;
+    }
+    if (event.target.closest("[data-export-list]")) {
+      exportList();
+      return;
+    }
+    if (event.target.closest("[data-import-list]")) {
+      document.querySelector("#import-file")?.click();
       return;
     }
     if (event.target.closest("[data-add-project]")) {
@@ -4511,6 +4537,13 @@ document.addEventListener("keydown", (event) => {
 
 desktopQuery.addEventListener("change", () => {
   if (state.openId) render();
+});
+
+document.querySelector("#import-file")?.addEventListener("change", (event) => {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  input.value = "";
+  readImport(file);
 });
 
 boot();

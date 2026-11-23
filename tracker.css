@@ -1524,8 +1524,10 @@ textarea.field { min-height: 88px; resize: vertical; }
 
 .page-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 0 0 auto;
+  justify-content: flex-end;
 }
 
 .btn {
